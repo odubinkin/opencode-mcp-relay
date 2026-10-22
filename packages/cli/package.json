@@ -19,6 +19,7 @@
   "scripts": {
     "build": "bun run script/build.ts",
     "build:node": "bun run script/build-node.ts",
+    "build:mcp": "bun build src/mcp/standalone.ts --compile --minify --env=disable --outfile dist/opencode-mcp",
     "dev": "bun run src/index.ts",
     "test": "bun test --timeout 30000 --only-failures",
     "typecheck": "tsc -b"

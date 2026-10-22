@@ -4,12 +4,16 @@ import { StdioServerTransport } from "@modelcontextprotocol/server/stdio"
 import { mkdir, readdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { OPENCODE_VERSION } from "../version"
+import { McpOAuth } from "./oauth"
+import { Env } from "../env"
+import { Option, Schema } from "effect"
 
 const OUTPUT_LIMIT = 32 * 1024
 const DEFAULT_TIMEOUT = 2 * 60 * 1_000
+const decodeMethod = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Struct({ method: Schema.String })))
 
 export namespace McpServer {
-  export async function serve(directory: string, suppliedTransport?: Transport) {
+  export async function serve(directory: string, suppliedTransport?: Transport, authenticated = false) {
     const root = path.resolve(directory)
     const server = new Server({ name: "opencode", version: OPENCODE_VERSION }, { capabilities: { tools: {} } })
 
@@ -78,7 +82,15 @@ export namespace McpServer {
         },
       },
     ]
-    server.setRequestHandler("tools/list", async () => ({ tools }))
+    server.setRequestHandler("tools/list", async () => ({
+      tools: authenticated
+        ? tools.map((tool) => ({
+            ...tool,
+            securitySchemes: [{ type: "oauth2", scopes: ["opencode:tools"] }],
+            _meta: { securitySchemes: [{ type: "oauth2", scopes: ["opencode:tools"] }] },
+          }))
+        : tools,
+    }))
 
     server.setRequestHandler("tools/call", async ({ params }) => {
       try {
@@ -133,25 +145,61 @@ export namespace McpServer {
     })
   }
 
-  export function listen(directory: string, options: { hostname: string; port: number }) {
+  export function listen(
+    directory: string,
+    options: {
+      hostname: string
+      port: number
+      oauth?: McpOAuth.Options
+      onRequest?: (event: {
+        method: string
+        path: string
+        rpc?: string
+        status: number
+        authorization: boolean
+      }) => void
+    },
+  ) {
+    const oauth = options.oauth ? McpOAuth.make(options.oauth) : undefined
     const sessions = new Map<string, WebStandardStreamableHTTPServerTransport>()
+    const handle = async (request: Request) => {
+      const response = await oauth?.handle(request)
+      if (response) return response
+      if (new URL(request.url).pathname !== "/mcp") return new Response("Not found", { status: 404 })
+      const unauthorized = oauth?.authorize(request)
+      if (unauthorized) return unauthorized
+      const session = request.headers.get("mcp-session-id")
+      const current = session ? sessions.get(session) : undefined
+      if (current) return current.handleRequest(request)
+      const transport = new WebStandardStreamableHTTPServerTransport({
+        sessionIdGenerator: () => crypto.randomUUID(),
+      })
+      await serve(directory, transport, Boolean(oauth))
+      transport.onclose = () => {
+        if (transport.sessionId) sessions.delete(transport.sessionId)
+      }
+      const result = await transport.handleRequest(request)
+      if (transport.sessionId) sessions.set(transport.sessionId, transport)
+      return result
+    }
     const http = Bun.serve({
       hostname: options.hostname,
       port: options.port,
+      maxRequestBodySize: 1024 * 1024,
       fetch: async (request) => {
-        if (new URL(request.url).pathname !== "/mcp") return new Response("Not found", { status: 404 })
-        const session = request.headers.get("mcp-session-id")
-        const current = session ? sessions.get(session) : undefined
-        if (current) return current.handleRequest(request)
-        const transport = new WebStandardStreamableHTTPServerTransport({
-          sessionIdGenerator: () => crypto.randomUUID(),
+        const pathname = new URL(request.url).pathname
+        const rpc =
+          options.onRequest && request.method === "POST" && pathname === "/mcp"
+            ? Option.getOrUndefined(decodeMethod(await request.clone().text()))?.method
+            : undefined
+        const response = await handle(request)
+        options.onRequest?.({
+          method: request.method,
+          path: pathname,
+          rpc,
+          status: response.status,
+          authorization: request.headers.has("authorization"),
         })
-        await serve(directory, transport)
-        transport.onclose = () => {
-          if (transport.sessionId) sessions.delete(transport.sessionId)
-        }
-        const response = await transport.handleRequest(request)
-        if (transport.sessionId) sessions.set(transport.sessionId, transport)
         return response
       },
     })
@@ -216,6 +264,7 @@ async function runCommand(root: string, command: string, cwd: string, timeout: n
       : ["sh", "-lc", command],
     {
       cwd: directory,
+      env: Env.session(),
       stdout: "pipe",
       stderr: "pipe",
     },

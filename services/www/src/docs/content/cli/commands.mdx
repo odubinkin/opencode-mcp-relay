@@ -222,6 +222,27 @@ Use Streamable HTTP when an MCP client must connect over the network. HTTP liste
 $ opencode mcp serve /path/to/project --transport http --port 3000
 ```
 
+### MCP OAuth for ChatGPT
+
+The HTTP server supports a predefined OAuth client using Authorization Code with PKCE (S256). Configure all five `OPENCODE_MCP_OAUTH_*` variables in `packages/cli/.env`; `packages/cli/.env.example` documents them. If any are set but others are missing, the HTTP server refuses to start. Leaving all five unset preserves unauthenticated local development mode. Stdio does not use OAuth.
+
+Set `OPENCODE_MCP_OAUTH_ISSUER` to the public HTTPS origin that forwards to this HTTP server, such as `https://opencode.example.com`, without `/mcp`. Use that same origin for the MCP URL in ChatGPT: `https://opencode.example.com/mcp`. A local `127.0.0.1` URL is only for testing; ChatGPT needs a reachable HTTPS endpoint.
+
+In ChatGPT's MCP server settings, select **OAuth** and copy `OPENCODE_MCP_OAUTH_CLIENT_ID` and `OPENCODE_MCP_OAUTH_CLIENT_SECRET` into **Client ID** and **Client Secret**. Set `OPENCODE_MCP_OAUTH_REDIRECT_URIS` to the exact redirect URI shown there; multiple URIs are comma-separated. The server supports issuer identification and includes `iss` in authorization responses. The example uses ChatGPT's stable callback `https://chatgpt.com/connector_platform_oauth_redirect`.
+
+When linking the connection, enter `OPENCODE_MCP_OAUTH_PASSWORD` on the OpenCode MCP confirmation page. This is a separate MCP access password that you configure, not an OpenCode account, background service password, or OpenAI password. Generate different random values for the client secret and this password. Successful authorization grants the `opencode:tools` scope and full access to the exposed tools.
+
+For source development, Bun loads `.env` from the CLI directory:
+
+```bash
+cd packages/cli
+bun run src/index.ts mcp serve /path/to/project --transport http
+```
+
+Access tokens expire after one hour. Refresh tokens rotate on use and expire after 30 days. Issued token hashes are saved to a private file and restored on restart. The standalone build stores `oauth-tokens.json` next to its env file; the CLI uses its global state directory. Set `OPENCODE_MCP_OAUTH_TOKEN_FILE` to override the path. Changing the issuer, client ID, client secret, or MCP access password invalidates stored tokens. Pending consent forms and authorization codes are not restored. OAuth credentials are excluded from the environment passed to shell tools and new OpenCode sessions. Local `.env` and `oauth-tokens.json` files are ignored by Git; commit only `.env.example`.
+
+See the [OpenAI authentication guide](https://developers.openai.com/apps-sdk/build/auth) for ChatGPT's OAuth requirements.
+
 Add a remote server.
 
 ```bash
