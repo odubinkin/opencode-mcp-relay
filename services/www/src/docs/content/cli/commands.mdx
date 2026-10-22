@@ -210,6 +210,18 @@ Manages MCP (Model Context Protocol) servers.
 $ opencode mcp list
 ```
 
+Start a local MCP server for an external model. It communicates over stdio and exposes directory listing, file reads and edits, and shell commands in the selected project. It grants the connected client full local permissions.
+
+```bash
+$ opencode mcp serve /path/to/project
+```
+
+Use Streamable HTTP when an MCP client must connect over the network. HTTP listens on `127.0.0.1:4096` by default; use `--hostname` and `--port` to change it.
+
+```bash
+$ opencode mcp serve /path/to/project --transport http --port 3000
+```
+
 Add a remote server.
 
 ```bash

@@ -223,6 +223,27 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
       description: "Manage MCP (Model Context Protocol) servers",
       commands: [
         Spec.make("list", { description: "List configured MCP servers and their status" }),
+        Spec.make("serve", {
+          description: "Start an MCP server that exposes local filesystem and shell tools",
+          params: {
+            directory: Argument.String("directory").pipe(
+              Argument.withDescription("Directory to expose to MCP clients (defaults to the current directory)"),
+              Argument.optional,
+            ),
+            transport: Flag.Literals("transport", ["stdio", "http"]).pipe(
+              Flag.withDescription("MCP transport to serve"),
+              Flag.withDefault("stdio"),
+            ),
+            hostname: Flag.String("hostname").pipe(
+              Flag.withDescription("HTTP hostname (only used with --transport http)"),
+              Flag.withDefault("127.0.0.1"),
+            ),
+            port: Flag.Int("port").pipe(
+              Flag.withDescription("HTTP port (only used with --transport http)"),
+              Flag.withDefault(4096),
+            ),
+          },
+        }),
         Spec.make("add", {
           description: "Add an MCP server to your configuration",
           params: {
