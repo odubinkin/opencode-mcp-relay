@@ -445,7 +445,8 @@ export namespace Timeline {
               messages.flatMap((message) =>
                 message.type === "compaction" ||
                 message.type === "model-switched" ||
-                message.type === "location-switched"
+                message.type === "location-switched" ||
+                (message.type === "tool" && message.metadata?.source === "mcp")
                   ? [message.id]
                   : [],
               ),

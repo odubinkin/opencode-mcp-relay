@@ -126,15 +126,36 @@ it.live(
               }),
             )
             try {
-              expect((await client.listTools()).tools.map((tool) => tool.name)).toContain("read")
+              const tools = (await client.listTools()).tools
+              expect(tools.find((tool) => tool.name === "read")?.inputSchema.required).toContain("_opencode_summary")
               expect((await client.listTools()).tools.map((tool) => tool.name)).not.toContain("subagent")
-              expect(await client.callTool({ name: "read", arguments: { path: "hello.txt" } })).toMatchObject({
+              for (const summary of [undefined, "   ", 42, "x".repeat(241)]) {
+                expect(
+                  await client.callTool({
+                    name: "write",
+                    arguments: { path: "blocked.txt", content: "blocked", _opencode_summary: summary },
+                  }),
+                ).toMatchObject({ isError: true })
+              }
+              expect(await Bun.file(path.join(directory.path, "blocked.txt")).exists()).toBe(false)
+              expect(
+                await client.callTool({
+                  name: "read",
+                  arguments: { path: "hello.txt", _opencode_summary: "Read the greeting file" },
+                }),
+              ).toMatchObject({
                 content: [{ type: "text", text: expect.stringContaining("native-relay-file") }],
               })
               const messages = (await api.message.list({ sessionID })).data
               expect(messages).toMatchObject([
-                { type: "tool", tool: { name: "read", state: { status: "completed", input: { path: "hello.txt" } } } },
+                {
+                  type: "tool",
+                  metadata: { source: "mcp", summary: "Read the greeting file" },
+                  tool: { name: "read", state: { status: "completed", input: { path: "hello.txt" } } },
+                },
               ])
+              if (messages[0]?.type !== "tool") throw new Error("Expected native tool history")
+              expect(messages[0].tool.state.input).toEqual({ path: "hello.txt" })
               expect(messages.some((message) => message.type === "assistant")).toBe(false)
             } finally {
               await client.close()
@@ -156,6 +177,10 @@ it.live(
             const status = await api.mcp.relay.start({ location })
             if (!status.localURL) throw new Error("Relay did not return a connection")
             expect(status.sessionID).toBe(saved.sessionID)
+            expect((await api.message.list({ sessionID: saved.sessionID })).data[0]?.metadata).toEqual({
+              source: "mcp",
+              summary: "Read the greeting file",
+            })
             const client = new Client({ name: "relay-restart", version: "1" })
             await client.connect(
               new StreamableHTTPClientTransport(new URL(status.localURL), {

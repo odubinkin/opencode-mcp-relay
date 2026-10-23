@@ -55,6 +55,7 @@ export const open = Effect.fn("McpRuntime.open")(function* (input: {
       args: Record<string, unknown>,
       options?: {
         readonly signal?: AbortSignal
+        readonly summary?: string
         readonly progress?: (metadata: Readonly<Record<string, unknown>>) => void
       },
     ) =>
@@ -62,6 +63,7 @@ export const open = Effect.fn("McpRuntime.open")(function* (input: {
         Effect.gen(function* () {
           const fiber = yield* external
             .execute(name, args, {
+              summary: options?.summary,
               progress: (metadata) => Effect.sync(() => options?.progress?.(metadata)),
             })
             .pipe(Effect.forkIn(scope, { startImmediately: true }))

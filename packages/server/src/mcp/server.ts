@@ -7,6 +7,12 @@ import { McpOAuth } from "./oauth"
 
 const decodeMethod = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Struct({ method: Schema.String })))
 const decodeAgent = Schema.decodeUnknownSync(Schema.Struct({ agent: Schema.String }))
+const decodeInputSchema = Schema.decodeUnknownSync(
+  Schema.Struct({
+    properties: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+    required: Schema.optional(Schema.Array(Schema.String)),
+  }),
+)
 const contextURI = "opencode://session/context"
 const additional: Tool[] = [
   {
@@ -36,7 +42,7 @@ export namespace McpServer {
       {
         capabilities: { tools: { listChanged: true }, prompts: { listChanged: true }, resources: {} },
         instructions:
-          "Call opencode_context before working. These are the real OpenCode tools and policies. Questions and permission requests wait for the user in the OpenCode TUI/GUI attached to this server. Use opencode_updates for background results and user input. Do not retry a pending mutating call; it may be awaiting approval.",
+          "Call opencode_context before working. These are the real OpenCode tools and policies. For every native tool call, supply _opencode_summary: one concise sentence in the user's language describing the action, not private reasoning. It is shown in the OpenCode activity log before execution. Questions and permission requests wait for the user in the OpenCode TUI/GUI attached to this server. Use opencode_updates for background results and user input. Do not retry a pending mutating call; it may be awaiting approval.",
       },
     )
     const seen = new Set<string>()
@@ -54,12 +60,31 @@ export namespace McpServer {
       if (native.some((tool) => additional.some((entry) => entry.name === tool.name)))
         throw new Error("An OpenCode tool conflicts with the reserved MCP context tool names")
       const tools: Tool[] = [
-        ...native.map((tool) => ({
-          name: tool.name,
-          description: tool.description,
-          inputSchema: { ...tool.inputSchema, type: "object" as const },
-          // MCP structuredContent is object-only, unlike OpenCode outputs. Return canonical model content.
-        })),
+        ...native.map((tool) => {
+          const shape = decodeInputSchema(tool.inputSchema)
+          if (shape.properties && "_opencode_summary" in shape.properties)
+            throw new Error(`Tool ${tool.name} conflicts with the reserved MCP argument _opencode_summary`)
+          return {
+            name: tool.name,
+            description: tool.description,
+            inputSchema: {
+              ...tool.inputSchema,
+              type: "object" as const,
+              properties: {
+                ...shape.properties,
+                _opencode_summary: {
+                  type: "string" as const,
+                  minLength: 1,
+                  maxLength: 240,
+                  description:
+                    "One concise sentence in the user's language describing this action, not private reasoning. Displayed in OpenCode before execution.",
+                },
+              },
+              required: [...(shape.required ?? []), "_opencode_summary"],
+            },
+            // MCP structuredContent is object-only, unlike OpenCode outputs. Return canonical model content.
+          }
+        }),
         ...additional,
       ]
       return {
@@ -81,7 +106,15 @@ export namespace McpServer {
           await server.sendToolListChanged()
           return text(JSON.stringify(await runtime.context()))
         }
-        const result = await runtime.execute(params.name, params.arguments ?? {}, { signal: extra.mcpReq.signal })
+        const summary = params.arguments?._opencode_summary
+        if (typeof summary !== "string" || !summary.trim() || summary.length > 240)
+          throw new Error("_opencode_summary must be a non-empty action description of at most 240 characters")
+        const args = { ...params.arguments }
+        delete args._opencode_summary
+        const result = await runtime.execute(params.name, args, {
+          signal: extra.mcpReq.signal,
+          summary: summary.trim(),
+        })
         const messages = await updates()
         return {
           content: [

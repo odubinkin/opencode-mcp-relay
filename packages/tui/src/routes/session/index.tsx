@@ -1979,6 +1979,11 @@ function SessionPartView(props: {
     if (item?.type !== "assistant" && item?.type !== "tool") return
     return resolvePart(item, props.partRef.partID)
   })
+  const summary = createMemo(() => {
+    const item = message()
+    if (item?.type !== "tool" || item.metadata?.source !== "mcp") return
+    return typeof item.metadata.summary === "string" ? item.metadata.summary : undefined
+  })
   return (
     <Show when={part()}>
       {(item) => (
@@ -1998,6 +2003,13 @@ function SessionPartView(props: {
             />
           </Match>
           <Match when={item().type === "tool"}>
+            <Show when={summary()}>
+              {(summary) => (
+                <text paddingLeft={3} wrapMode="word">
+                  {summary()}
+                </text>
+              )}
+            </Show>
             <ToolPart part={item() as SessionMessageAssistantTool} images={props.images} />
           </Match>
         </Switch>

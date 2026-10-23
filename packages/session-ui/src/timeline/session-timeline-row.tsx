@@ -28,7 +28,7 @@ import {
   SessionCompactionQueued,
 } from "../message/message-content"
 import { ToolRegistry, type ContextGroupPart } from "../tools/tool-renderer"
-import { GenericTool } from "../components/basic-tool"
+import { BasicTool, GenericTool } from "../components/basic-tool"
 import { SessionRetry } from "../components/session-retry"
 import { SessionError } from "../components/session-error"
 import { timelineCategory, type TimelineDetail } from "./detail"
@@ -546,6 +546,15 @@ export function createSessionTimelineRowRenderer(input: {
       return value?.type === "tool" ? value.tool : undefined
     })
 
+    const relay = createMemo(() => {
+      const value = message()
+      if (value?.type !== "tool" || value.metadata?.source !== "mcp") return
+      if (Predicate.isString(value.metadata.summary) && value.metadata.summary.trim()) return value.metadata.summary
+      const args = value.tool.state.status === "streaming" ? undefined : value.tool.state.input
+      const detail = args?.path ?? args?.command ?? args?.pattern
+      return Predicate.isString(detail) ? `${value.tool.name} · ${detail}` : value.tool.name
+    })
+
     const childID = createMemo(() => {
       const value = message()
 
@@ -590,13 +599,38 @@ export function createSessionTimelineRowRenderer(input: {
         <Show when={tool()}>
           {(tool) => (
             <div class={`w-full pt-2 ${inset()}`}>
-              <SessionToolContent
-                tool={tool()}
-                contentID={tool().id}
-                defaultOpen={contentDefaultOpen(tool())}
-                open={input.disclosure.value(`tool:${props.messageID}`)}
-                onOpenChange={(open) => input.disclosure.set(`tool:${props.messageID}`, open)}
-              />
+              <Show
+                when={relay()}
+                fallback={
+                  <SessionToolContent
+                    tool={tool()}
+                    contentID={tool().id}
+                    defaultOpen={contentDefaultOpen(tool())}
+                    open={input.disclosure.value(`tool:${props.messageID}`)}
+                    onOpenChange={(open) => input.disclosure.set(`tool:${props.messageID}`, open)}
+                  />
+                }
+              >
+                {(summary) => (
+                  <BasicTool
+                    icon="code-lines"
+                    trigger={{ title: summary() }}
+                    status={tool().state.status}
+                    hasContent
+                    allowOpenWhilePending
+                    open={input.disclosure.value(`relay:${props.messageID}`) ?? true}
+                    onOpenChange={(open) => input.disclosure.set(`relay:${props.messageID}`, open)}
+                  >
+                    <SessionToolContent
+                      tool={tool()}
+                      contentID={tool().id}
+                      defaultOpen
+                      open={input.disclosure.value(`tool:${props.messageID}`)}
+                      onOpenChange={(open) => input.disclosure.set(`tool:${props.messageID}`, open)}
+                    />
+                  </BasicTool>
+                )}
+              </Show>
             </div>
           )}
         </Show>

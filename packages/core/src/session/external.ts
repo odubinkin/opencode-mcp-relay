@@ -130,6 +130,7 @@ export const open = Effect.fn("SessionExternal.open")(function* (input: {
       name: string,
       args: Record<string, unknown>,
       options?: {
+        readonly summary?: string
         readonly progress?: (metadata: Tool.Metadata) => Effect.Effect<void>
       },
     ) =>
@@ -147,7 +148,7 @@ export const open = Effect.fn("SessionExternal.open")(function* (input: {
               yield* bus.publish(
                 SessionEvent.Tool.Started,
                 { ...owner, name, input: args },
-                { metadata: { source: "mcp" } },
+                { metadata: { source: "mcp", ...(options?.summary ? { summary: options.summary } : {}) } },
               )
               return yield* restore(
                 SessionToolExecution.execute(selection.tools, {

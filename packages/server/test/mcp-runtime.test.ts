@@ -141,7 +141,9 @@ it.live("shares native UI permissions and questions, including declines and canc
       )
     expect((yield* Effect.promise(() => runtime.fetch(new Request("http://local/api/session")))).status).toBe(401)
     const target = path.join(directory.path, "approved.txt")
-    const write = yield* Effect.promise(() => runtime.execute("write", { path: target, content: "approved" })).pipe(
+    const write = yield* Effect.promise(() =>
+      runtime.execute("write", { path: target, content: "approved" }, { summary: "Create the approved file" }),
+    ).pipe(
       Effect.tapCause((cause) => Deferred.failCause(permission, cause)),
       Effect.tap(() => Deferred.fail(permission, new Error("Write completed without asking permission"))),
       Effect.forkScoped,
@@ -155,6 +157,7 @@ it.live("shares native UI permissions and questions, including declines and canc
       data: [
         {
           type: "tool",
+          metadata: { source: "mcp", summary: "Create the approved file" },
           tool: { name: "write", state: { status: "running", input: { path: target, content: "approved" } } },
         },
       ],

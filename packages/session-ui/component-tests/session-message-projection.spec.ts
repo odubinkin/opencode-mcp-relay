@@ -3,7 +3,7 @@ import { expect, story } from "../../storybook/playwright/story"
 story("renders standalone MCP calls with native file, diff and shell components", async ({ mount }) => {
   const timeline = await mount("current-session-timeline-rows--direct-tools")
   await expect(timeline.getByText("README.md", { exact: true })).toBeVisible()
-  const file = timeline.getByRole("button", { name: /config\.ts/ })
+  const file = timeline.locator('[data-slot="accordion-trigger"]').filter({ hasText: "config.ts" })
   await expect(file).toBeVisible()
   if ((await file.getAttribute("aria-expanded")) === "false") await file.click()
   await expect(timeline.locator('[data-component="file"]')).toContainText("export const after = true")

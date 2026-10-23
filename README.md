@@ -118,6 +118,15 @@ Normal sessions keep their usual model-driven behavior. Relay exposes native Ope
 repository instructions and skills; subagents are disabled. Native permission requests, questions and tool activity
 appear in the Relay session in the TUI or GUI.
 
+Native MCP tool calls require `_opencode_summary`: one short sentence describing the action in the user's language
+(not private reasoning). It is recorded before execution and shown above the native tool card. Relay calls are
+separate, expanded-by-default cards in the GUI; manually collapsed cards stay collapsed. Older calls fall back to
+the tool name and path or command. Ordinary model-driven sessions retain their usual grouping.
+
+Packaged TUI builds include `start.command` next to `opencode`. Run it from the desired working directory;
+it inherits that directory and forwards all arguments unchanged. It never changes to the bundle directory or a
+machine-specific project path. For example: `cd /path/to/project` then `/path/to/bundle/start.command`.
+
 Relay runs inside the existing backend, with an independently OAuth-protected HTTP listener (default
 `127.0.0.1:4099`). Publish that port through your HTTPS reverse proxy or tunnel, and enter its origin without `/mcp`
 as the public URL. Add the exact callback URL shown by your MCP client. Save settings, copy the generated client

@@ -98,9 +98,12 @@ it.live("serves native tools, context, prompts and skills through HTTP MCP", () 
         )
         expect(names).not.toContain("execute")
         expect(names).not.toContain("subagent")
-        expect(await client.callTool({ name: "upstream_echo", arguments: { value: "native-upstream" } })).toMatchObject(
-          { content: [{ text: expect.stringContaining("native-upstream") }] },
-        )
+        expect(
+          await client.callTool({
+            name: "upstream_echo",
+            arguments: { value: "native-upstream", _opencode_summary: "Echo through the upstream server" },
+          }),
+        ).toMatchObject({ content: [{ text: `upstream:${JSON.stringify({ value: "native-upstream" })}` }] })
         expect((await client.callTool({ name: "subagent", arguments: {} })).isError).toBe(true)
         expect(await client.callTool({ name: "opencode_context" })).toMatchObject({
           content: [{ text: expect.stringContaining("mcp-native-context") }],
@@ -111,14 +114,24 @@ it.live("serves native tools, context, prompts and skills through HTTP MCP", () 
         })
         const target = path.join(directory.path, "example.txt")
         expect(
-          (await client.callTool({ name: "write", arguments: { path: target, content: "first\nsecond\n" } })).isError,
+          (
+            await client.callTool({
+              name: "write",
+              arguments: { path: target, content: "first\nsecond\n", _opencode_summary: "Create the example file" },
+            })
+          ).isError,
         ).not.toBe(true)
-        await client.callTool({ name: "read", arguments: { path: target } })
+        await client.callTool({ name: "read", arguments: { path: target, _opencode_summary: "Read the example file" } })
         expect(
           (
             await client.callTool({
               name: "edit",
-              arguments: { path: target, oldString: "second", newString: "updated" },
+              arguments: {
+                path: target,
+                oldString: "second",
+                newString: "updated",
+                _opencode_summary: "Update the second line",
+              },
             })
           ).isError,
         ).not.toBe(true)
@@ -126,14 +139,19 @@ it.live("serves native tools, context, prompts and skills through HTTP MCP", () 
         expect(
           await client.callTool({
             name: "shell",
-            arguments: { command: "echo command-ok", description: "Test shell" },
+            arguments: { command: "echo command-ok", _opencode_summary: "Check shell execution" },
           }),
         ).toMatchObject({ content: [{ text: expect.stringContaining("command-ok") }] })
         const context = await runtime.context()
         const skill = context.skills.find((skill) => skill.name === "example")
         expect(skill).toBeDefined()
         if (!skill) throw new Error("Skill not discovered")
-        expect(await client.callTool({ name: "skill", arguments: { id: skill.id } })).toMatchObject({
+        expect(
+          await client.callTool({
+            name: "skill",
+            arguments: { id: skill.id, _opencode_summary: "Load repository guidance" },
+          }),
+        ).toMatchObject({
           content: [{ text: expect.stringContaining("mcp-native-skill") }],
         })
         const nativeSession = await runtime.fetch(new Request(`http://local/api/session/${runtime.sessionID}`))
