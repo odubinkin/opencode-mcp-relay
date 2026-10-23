@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test"
 import type { OpenCodeEvent, SessionMessageInfo } from "@opencode/client/promise"
 import { Permission } from "@opencode/schema/permission"
 import { Worktree } from "@opencode/schema/worktree"
+import { McpRelay } from "@opencode/schema/mcp-relay"
 import { Duration, Effect, Layer, Option, Predicate, Schema } from "effect"
 import { HttpRouter, HttpServer, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
@@ -101,6 +102,13 @@ export interface MockServerConfig {
   forms?: unknown[] | (() => unknown[])
   // MCP servers. A list serves every workspace; a function receives the requested directory.
   mcp?: unknown[] | ((directory: string) => unknown[])
+  relay?: {
+    status: () => McpRelay.Status
+    configure: (input: McpRelay.Configure) => McpRelay.Status
+    start: () => McpRelay.Status
+    stop: () => McpRelay.Status
+    secrets: () => { clientSecret: string; password: string }
+  }
   // Connect/disconnect record the server's new status in that workspace (`connected`/`disabled`); the hook may return
   // another status (for example `{ status: "failed", error }`). Unknown servers answer 404.
   onMcpAction?: (input: { server: string; action: "connect" | "disconnect"; directory: string }) => void | MockMcpStatus
@@ -947,6 +955,16 @@ function mockHandlers(
             return { location: location(config, directory), data: mcpServers(directory) }
           }),
         mcpConnect: (ctx) => mcpAction(ctx.params.server, "connect", ctx.request),
+        relayStatus: () => Effect.sync(() => config.relay?.status() ?? { running: false }),
+        relayConfigure: (ctx) =>
+          config.relay
+            ? Effect.sync(() => config.relay?.configure(Schema.decodeUnknownSync(McpRelay.Configure)(ctx.payload)))
+            : unsupported("configure Relay", "relay"),
+        relayStart: () =>
+          config.relay ? Effect.sync(() => config.relay?.start()) : unsupported("start Relay", "relay"),
+        relayStop: () => (config.relay ? Effect.sync(() => config.relay?.stop()) : unsupported("stop Relay", "relay")),
+        relaySecrets: () =>
+          config.relay ? Effect.sync(() => config.relay?.secrets()) : unsupported("reveal Relay credentials", "relay"),
         mcpDisconnect: (ctx) => mcpAction(ctx.params.server, "disconnect", ctx.request),
         mcpResource: (ctx) =>
           Effect.succeed({
@@ -1511,6 +1529,7 @@ export function currentSession(session: MockSession, fallbackDirectory?: string)
     projectID: session.projectID ?? "project",
     agent: session.agent ?? "build",
     model: session.model,
+    driver: session.driver,
     cost: session.cost ?? 0,
     tokens: session.tokens ?? { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
     ...decodeSessionOutcome(session),

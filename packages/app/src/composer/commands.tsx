@@ -38,6 +38,10 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
       void dialog.show(() => <DialogSelectModel model={model} />)
     })
   }
+  const relay = async () => {
+    const { DialogMcpRelay } = await import("@/providers/connect/relay-dialog")
+    void dialog.show(() => <DialogMcpRelay directory={workspace().directory} start />)
+  }
 
   command.register("composer", () => [
     modelCommand({
@@ -62,6 +66,14 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
       slash: "connect",
       onSelect: connectProvider,
     }),
+    providerCommand({
+      id: "mcp.relay.mode",
+      title: language.t("relay.title"),
+      description: language.t("relay.description"),
+      slash: "mcprelaymode",
+      onSelect: relay,
+    }),
+    providerCommand({ id: "mcp.relay.alias", title: language.t("relay.title"), slash: "relay", onSelect: relay }),
     agentCommand({
       id: "agent.cycle",
       title: language.t("command.agent.cycle"),

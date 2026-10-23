@@ -379,6 +379,7 @@ export const layer = (options?: Options) =>
       )
       yield* reloadLock.withPermit(reconcile(initial))
 
+      const context = yield* Effect.context<Effect.Services<ReturnType<typeof reload>>>()
       const update = Effect.fn("Config.update")(
         function* (patch: Patch) {
           const directory = initial.global ?? AbsolutePath.make(globalService.config)
@@ -388,16 +389,22 @@ export const layer = (options?: Options) =>
           const text = (yield* fs.readFileStringSafe(filepath)) ?? "{}\n"
           const updated = yield* Effect.try({
             try: () =>
-              applyEdits(
+              Object.entries(patch).reduce(
+                (text, [key, value]) =>
+                  value === undefined
+                    ? text
+                    : applyEdits(
+                        text,
+                        modify(text, [key], value ?? undefined, {
+                          formattingOptions: { tabSize: 2, insertSpaces: true },
+                        }),
+                      ),
                 text,
-                modify(text, ["shell"], patch.shell ?? undefined, {
-                  formattingOptions: { tabSize: 2, insertSpaces: true },
-                }),
               ),
             catch: (cause) => new FSUtil.FileSystemError({ method: "config.update", cause }),
           })
           yield* fs.writeWithDirs(filepath, updated.endsWith("\n") ? updated : `${updated}\n`)
-          yield* requestReload
+          yield* reload().pipe(Effect.provide(context))
         },
         (effect) => updateLock.withPermit(effect),
       )

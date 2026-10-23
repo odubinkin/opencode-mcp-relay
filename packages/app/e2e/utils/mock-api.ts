@@ -148,6 +148,17 @@ const Group = HttpApiGroup.make("mock")
   .add(HttpApiEndpoint.get("skill", "/api/skill", { success: Json }))
   .add(HttpApiEndpoint.get("plugin", "/api/plugin", { success: Json }))
   .add(HttpApiEndpoint.get("mcp", "/api/mcp", { success: Json }))
+  .add(HttpApiEndpoint.get("relayStatus", "/api/mcp/relay", { success: Json }))
+  .add(
+    HttpApiEndpoint.put("relayConfigure", "/api/mcp/relay", {
+      payload: Schema.JsonObject,
+      success: Json,
+      error: Unsupported,
+    }),
+  )
+  .add(HttpApiEndpoint.post("relayStart", "/api/mcp/relay/start", { success: Json, error: Unsupported }))
+  .add(HttpApiEndpoint.delete("relayStop", "/api/mcp/relay", { success: Json, error: Unsupported }))
+  .add(HttpApiEndpoint.get("relaySecrets", "/api/mcp/relay/secrets", { success: Json, error: Unsupported }))
   .add(
     HttpApiEndpoint.post("mcpConnect", "/api/experimental/mcp/:server/connect", {
       params: { server: Schema.String },

@@ -29,6 +29,7 @@ import { parseClientSlashCommand } from "./client-slash-command"
 
 export type ComposerModel = ComposerEditorModel & {
   readonly model: ComposerControls["model"]
+  readonly external?: boolean
 }
 
 const sendFailedTitle = {
@@ -434,6 +435,9 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
   })
 
   Object.defineProperty(controller, "model", { get: () => adapter.controls().model })
+  Object.defineProperty(controller, "external", {
+    get: () => adapter.kind === "active-session" && adapter.session().current()?.driver === "external",
+  })
 
   command.register("composer-editor", () => [
     {

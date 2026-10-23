@@ -1,11 +1,50 @@
 import { Mcp } from "@opencode/schema/mcp"
+import { McpRelay } from "@opencode/schema/mcp-relay"
 import { Location } from "@opencode/schema/location"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api"
-import { McpServerNotFoundError } from "../errors.js"
+import { InvalidRequestError, McpServerNotFoundError } from "../errors.js"
 import { LocationQuery, locationQueryOpenApi } from "./location.js"
 
 export const McpGroup = HttpApiGroup.make("server.mcp")
+  .add(
+    HttpApiEndpoint.get("mcp.relay.status", "/api/mcp/relay", {
+      query: LocationQuery,
+      success: McpRelay.Status,
+    }).annotateMerge(OpenApi.annotations({ identifier: "mcp.relay.status", summary: "Get MCP Relay status" })),
+  )
+  .add(
+    HttpApiEndpoint.put("mcp.relay.configure", "/api/mcp/relay", {
+      query: LocationQuery,
+      payload: McpRelay.Configure,
+      success: McpRelay.Status,
+      error: InvalidRequestError,
+    }).annotateMerge(
+      OpenApi.annotations({ identifier: "mcp.relay.configure", summary: "Configure MCP Relay globally" }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("mcp.relay.start", "/api/mcp/relay/start", {
+      query: LocationQuery,
+      success: McpRelay.Status,
+      error: InvalidRequestError,
+    }).annotateMerge(
+      OpenApi.annotations({ identifier: "mcp.relay.start", summary: "Start MCP Relay in this backend" }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete("mcp.relay.stop", "/api/mcp/relay", {
+      query: LocationQuery,
+      success: McpRelay.Status,
+    }).annotateMerge(OpenApi.annotations({ identifier: "mcp.relay.stop", summary: "Stop MCP Relay" })),
+  )
+  .add(
+    HttpApiEndpoint.get("mcp.relay.secrets", "/api/mcp/relay/secrets", {
+      query: LocationQuery,
+      success: McpRelay.Secrets,
+      error: InvalidRequestError,
+    }).annotateMerge(OpenApi.annotations({ identifier: "mcp.relay.secrets", summary: "Reveal MCP Relay credentials" })),
+  )
   .add(
     HttpApiEndpoint.get("mcp.list", "/api/mcp", {
       query: LocationQuery,

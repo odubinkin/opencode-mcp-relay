@@ -25,6 +25,7 @@
     "probe:workerd": "bun run script/workerd-probe.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
     "@effect/platform-node": "catalog:",
     "@effect/platform-node-shared": "catalog:",
     "@opencode/core": "workspace:*",
@@ -35,6 +36,7 @@
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
     "@opencode-ai/pty": "0.3.1",
     "@opencode/client": "workspace:*",
     "@opencode/plugin": "workspace:*",

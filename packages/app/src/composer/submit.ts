@@ -99,6 +99,77 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
         ),
     })
 
+    if (input.adapter.kind === "active-session" && input.adapter.session().current()?.driver === "external") {
+      if (!text.trim() || submitting.has(input.adapter.state)) return
+      const session = input.adapter.session()
+      const delivery = input.delivery?.(options?.alternate ?? false) ?? "steer"
+      if (input.mode() === "shell" && delivery === "queue") return input.notify.unqueueable()
+      submitting.add(input.adapter.state)
+      const mode = input.mode()
+      const comments = input.comments.capture()
+      const id = SessionMessage.ID.create()
+      try {
+        const request = buildPromptRequest({
+          prompt,
+          context: submission.context,
+          text,
+          sessionDirectory: session.directory,
+          images: await Promise.all(
+            prompt
+              .filter((part): part is ImageAttachmentPart => part.type === "image")
+              .map(async (attachment) => ({
+                ...attachment,
+                dataUrl: await blobDataUrl(attachment.blob, attachment.mime),
+              })),
+          ),
+        })
+        input.addToHistory(prompt, mode)
+        clearSubmission(input, submission)
+        const command = mode === "normal" ? findCommand(input.commands(), text) : undefined
+        const send = () => {
+          if (mode === "shell") return session.api.shell({ sessionID: session.id, id, command: text })
+          if (command)
+            return session.api.command({
+              sessionID: session.id,
+              name: command.command,
+              text: command.arguments,
+              files: request.files,
+              agents: request.agents,
+              skills: request.skills,
+              delivery,
+            })
+          return session.data.session.prompt({
+            sessionID: session.id,
+            id,
+            text: request.text,
+            files: request.files,
+            agents: request.agents,
+            skills: request.skills,
+            delivery,
+            metadata: {
+              displayText: request.displayText,
+              comments: request.comments,
+              attachments: request.attachments,
+            },
+          })
+        }
+        await send()
+        input.comments.clear()
+        input.adapter.submitted()
+      } catch (error) {
+        const restored = submission.restore()
+        if (restored) {
+          restored.target.set(restored.prompt, promptLength(restored.prompt))
+          input.comments.restore(comments)
+          input.removeFromHistory(prompt, mode, comments)
+        }
+        input.notify.failed(mode === "shell" ? "shell" : "prompt", error)
+      } finally {
+        submitting.delete(input.adapter.state)
+      }
+      return
+    }
+
     const read = readSubmission(input, submission.prompt, submission.context, text, options?.alternate ?? false)
 
     if (!read) {

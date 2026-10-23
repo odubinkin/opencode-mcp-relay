@@ -24,7 +24,12 @@ test("the free usage limit opens the Go dialog once, leaves a readable notice, a
           id: "opencode",
           name: "OpenCode",
           models: {
-            "big-pickle": { id: "big-pickle", name: "Big Pickle", cost: { input: 0, output: 0 }, limit: { context: 200_000 } },
+            "big-pickle": {
+              id: "big-pickle",
+              name: "Big Pickle",
+              cost: { input: 0, output: 0 },
+              limit: { context: 200_000 },
+            },
           },
         },
         ...(state.authorized
@@ -34,7 +39,12 @@ test("the free usage limit opens the Go dialog once, leaves a readable notice, a
                 integrationID: "opencode-go",
                 name: "OpenCode Go",
                 models: {
-                  "glm-5-go": { id: "glm-5-go", name: "GLM-5 Go", cost: { input: 1, output: 1 }, limit: { context: 200_000 } },
+                  "glm-5-go": {
+                    id: "glm-5-go",
+                    name: "GLM-5 Go",
+                    cost: { input: 1, output: 1 },
+                    limit: { context: 200_000 },
+                  },
                 },
               },
             ]
@@ -48,7 +58,9 @@ test("the free usage limit opens the Go dialog once, leaves a readable notice, a
         id: "opencode",
         name: "OpenCode Console",
         methods: [{ id: "device", type: "oauth", label: "OpenCode Console account" }],
-        connections: state.authorized ? [{ type: "credential", id: "cred_console", label: "Anomaly", method: "oauth" }] : [],
+        connections: state.authorized
+          ? [{ type: "credential", id: "cred_console", label: "Anomaly", method: "oauth" }]
+          : [],
       },
       {
         id: "opencode-go",
@@ -537,6 +549,8 @@ test("lists slash commands in their built-in order", async ({ page }) => {
     "/mcp",
     "/model",
     "/connect",
+    "/mcprelaymode",
+    "/relay",
     "/btw",
   ])
 })

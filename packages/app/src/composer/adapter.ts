@@ -85,6 +85,7 @@ export type ComposerSession = {
   current: Accessor<
     | {
         agent?: string
+        driver?: "external"
         model?: { id: string; providerID: string; variant?: string }
         revert?: { messageID: string }
       }

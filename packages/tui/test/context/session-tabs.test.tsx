@@ -16,6 +16,7 @@ import { StorageProvider, useStorage } from "../../src/context/storage"
 import { createApi, createEventStream, createFetch, directory, json } from "../fixture/tui-client"
 import { TestTuiContexts } from "../fixture/tui-environment"
 import { tmpdir } from "../fixture/fixture"
+import { ToastProvider } from "../../src/ui/toast"
 import { createTuiResolvedConfig } from "../fixture/tui-runtime"
 
 async function wait(fn: () => boolean | Promise<boolean>, timeout = 2_000, label = "condition") {
@@ -41,6 +42,7 @@ async function renderSessionTabs(
     newLocation?: "launch" | "inherit"
     launchDirectory?: string
     tabsEnabled?: boolean
+    relay?: string
     viewFailures?: number
     experimental?: Record<string, boolean>
   },
@@ -66,6 +68,7 @@ async function renderSessionTabs(
   const events = createEventStream()
   const sessions: string[] = []
   const views: string[] = []
+  const relayStops: string[] = []
   const viewWatermarks: number[] = []
   const locations: string[] = []
   const vcsLocations: string[] = []
@@ -73,6 +76,12 @@ async function renderSessionTabs(
     Object.entries(options?.sessionTimes ?? {}).map(([sessionID, time]) => [sessionID, { ...time }]),
   )
   const calls = createFetch(async (url, request) => {
+    if (url.pathname === "/api/mcp/relay" && request.method === "GET")
+      return json({ running: true, sessionID: options?.relay, directory })
+    if (url.pathname === "/api/mcp/relay" && request.method === "DELETE") {
+      relayStops.push(request.method)
+      return json({ running: false })
+    }
     if (url.pathname === "/api/location") {
       const requested = url.searchParams.get("location[directory]") ?? directory
       locations.push(requested)
@@ -118,6 +127,7 @@ async function renderSessionTabs(
   function sessionInfo(sessionID: string) {
     return {
       id: sessionID,
+      driver: sessionID === options?.relay ? "external" : undefined,
       parentID: options?.sessionParents?.[sessionID],
       title: sessionID === initialSessionID ? options?.title : undefined,
       projectID: "project",
@@ -171,9 +181,11 @@ async function renderSessionTabs(
               <ClientProvider api={createApi(calls.fetch)}>
                 <DataProvider directory={options?.launchDirectory ?? directory}>
                   <LocationProvider>
-                    <SessionTabsProvider>
-                      <Probe />
-                    </SessionTabsProvider>
+                    <ToastProvider>
+                      <SessionTabsProvider>
+                        <Probe />
+                      </SessionTabsProvider>
+                    </ToastProvider>
                   </LocationProvider>
                 </DataProvider>
               </ClientProvider>
@@ -191,6 +203,7 @@ async function renderSessionTabs(
     data,
     sessions,
     views,
+    relayStops,
     viewWatermarks,
     locations,
     vcsLocations,
@@ -326,6 +339,22 @@ test("keeps each visited session open", async () => {
     await wait(() => setup.tabs.tabs().some((tab) => tab.sessionID === "third"))
 
     expect(setup.tabs.tabs().map((tab) => tab.sessionID)).toEqual(["first", "second", "third"])
+  } finally {
+    await setup.destroy()
+  }
+})
+
+test("closing the Relay tab stops its listener without deleting the session", async () => {
+  const setup = await renderSessionTabs("relay", { relay: "relay", persisted: ["relay", "normal"] })
+  try {
+    await wait(() => setup.data.session.get("relay")?.driver === "external" && setup.tabs.tabs().length === 2)
+    setup.tabs.close("normal")
+    await wait(() => setup.tabs.tabs().length === 1)
+    expect(setup.relayStops).toEqual([])
+    setup.tabs.close("relay")
+    await wait(() => setup.tabs.tabs().length === 0)
+    expect(setup.relayStops).toEqual(["DELETE"])
+    expect(setup.data.session.get("relay")?.driver).toBe("external")
   } finally {
     await setup.destroy()
   }

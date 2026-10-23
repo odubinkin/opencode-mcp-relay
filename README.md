@@ -110,6 +110,40 @@ Learn more about [agents](https://opencode.ai/docs/agents).
 
 ### Documentation
 
+#### MCP Relay Mode
+
+Run OpenCode normally, then use `/mcprelaymode` (or `/relay`) to open a dedicated session driven by an external MCP
+client. First use opens setup automatically. `/connect` → **MCP Relay Mode** opens the same settings and status panel.
+Normal sessions keep their usual model-driven behavior. Relay exposes native OpenCode tools, agent prompts,
+repository instructions and skills; subagents are disabled. Native permission requests, questions and tool activity
+appear in the Relay session in the TUI or GUI.
+
+Relay runs inside the existing backend, with an independently OAuth-protected HTTP listener (default
+`127.0.0.1:4099`). Publish that port through your HTTPS reverse proxy or tunnel, and enter its origin without `/mcp`
+as the public URL. Add the exact callback URL shown by your MCP client. Save settings, copy the generated client
+secret and access password from the panel, then start Relay. The access password is a dedicated Relay secret, not
+your operating-system or OpenCode account password.
+
+The settings panel also accepts your own **OAuth client secret** and **Access password**, with a separate **Generate**
+action for each. Editing or generating a value only updates the draft until you save. Empty values preserve existing
+credentials, or generate them on first save. After replacing the client secret, update the MCP client's settings too.
+Each field has **Show/Hide** and **Copy** controls for its current value, including unsaved drafts. These two secrets
+are stored as recoverable credentials; only issued OAuth access and refresh tokens are persisted as hashes.
+
+For ChatGPT, use the copied MCP URL, client ID and secret, token authentication `client_secret_post`, scope
+`opencode:tools` and PKCE `S256`. Auth URL is `<public origin>/oauth/authorize`; Token URL is
+`<public origin>/oauth/token`. OIDC and dynamic client registration are not implemented.
+The settings panel provides copy actions for Auth URL, Token URL, authorization server base (the public origin),
+and Resource (the MCP URL), in addition to the MCP URL and client ID. No Registration URL or OIDC URL is needed.
+
+Non-secret `mcpRelay` settings are saved to OpenCode's global configuration, secrets use its Credential store,
+and session bindings plus issued token hashes use the main database's existing KV table. No Relay-specific database
+or `.env` is needed. Repository configuration cannot provide host-wide Relay settings. The listener starts only on
+explicit activation; **Stop Relay** or closing its session tab stops it without converting or deleting its session.
+Settings remain editable while running and apply only after **Save and restart Relay**. Switching UI tabs never
+retargets a connected model. Backend shutdown stops the listener; activation after restart reuses the saved session
+and unexpired OAuth tokens. Existing standalone MCP entry points remain supported.
+
 For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/docs).
 
 ### Contributing

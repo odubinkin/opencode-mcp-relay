@@ -224,6 +224,16 @@ export type IntegrationCommandAttemptStatus =
       time: { created: number | "Infinity" | "-Infinity" | "NaN"; expires: number | "Infinity" | "-Infinity" | "NaN" }
     }
 
+export type ConfigMcpRelay = {
+  issuer: string
+  hostname: string
+  port: number
+  clientID: string
+  redirectURIs: Array<string>
+}
+
+export type McpRelaySecrets = { clientSecret: string; password: string }
+
 export type McpStatusConnected = { status: "connected" }
 
 export type McpStatusPending = { status: "pending" }
@@ -716,6 +726,15 @@ export type IntegrationAttempt = {
 }
 
 export type IntegrationCommandAttempt = { attemptID: IntegrationAttemptID; time: { created: number; expires: number } }
+
+export type McpRelayStatus = {
+  running: boolean
+  settings?: ConfigMcpRelay
+  sessionID?: SessionID
+  directory?: AbsolutePath
+  url?: string
+  localURL?: string
+}
 
 export type McpServer = {
   name: string
@@ -2294,6 +2313,7 @@ export type ConfigEntry =
                 }
           }
         }
+        mcpRelay?: ConfigMcpRelay
         compaction?: { auto?: boolean; keep?: { tokens?: number }; buffer?: number }
         skills?: Array<string>
         commands?: {
@@ -5199,6 +5219,69 @@ export type IntegrationCommandCancelInput = {
 
 export type IntegrationCommandCancelOutput = void
 
+export type McpRelayStatusInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type McpRelayStatusOutput = McpRelayStatus
+
+export type McpRelayConfigureInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+  readonly settings: {
+    readonly settings: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+    }
+    readonly clientSecret?: string
+    readonly password?: string
+  }["settings"]
+  readonly clientSecret?: {
+    readonly settings: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+    }
+    readonly clientSecret?: string
+    readonly password?: string
+  }["clientSecret"]
+  readonly password?: {
+    readonly settings: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+    }
+    readonly clientSecret?: string
+    readonly password?: string
+  }["password"]
+}
+
+export type McpRelayConfigureOutput = McpRelayStatus
+
+export type McpRelayStartInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type McpRelayStartOutput = McpRelayStatus
+
+export type McpRelayStopInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type McpRelayStopOutput = McpRelayStatus
+
+export type McpRelaySecretsInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type McpRelaySecretsOutput = McpRelaySecrets
+
 export type McpListInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
 }
@@ -6078,6 +6161,27 @@ export type ConfigGetOutput = Array<ConfigEntry>
 
 export type ConfigShellsOutput = Array<ConfigShellOption>
 
-export type ConfigUpdateInput = { readonly shell: { readonly shell: string | null }["shell"] }
+export type ConfigUpdateInput = {
+  readonly shell?: {
+    readonly shell?: string | null
+    readonly mcpRelay?: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+    } | null
+  }["shell"]
+  readonly mcpRelay?: {
+    readonly shell?: string | null
+    readonly mcpRelay?: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+    } | null
+  }["mcpRelay"]
+}
 
 export type ConfigUpdateOutput = void

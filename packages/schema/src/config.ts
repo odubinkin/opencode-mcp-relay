@@ -12,6 +12,7 @@ import { ConfigExperimental } from "./config/experimental.js"
 import { ConfigFormatter } from "./config/formatter.js"
 import { ConfigLSP } from "./config/lsp.js"
 import { ConfigMCP } from "./config/mcp.js"
+import { ConfigMcpRelay } from "./config/mcp-relay.js"
 import { ConfigModel } from "./config/model.js"
 import { ConfigPlugin } from "./config/plugin.js"
 import { ConfigPolicy } from "./config/policy.js"
@@ -82,6 +83,9 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   mcp: ConfigMCP.Info.pipe(optional).annotate({
     description: "MCP server configuration",
   }),
+  mcpRelay: ConfigMcpRelay.Info.pipe(optional).annotate({
+    description: "Global MCP Relay listener and OAuth settings. Does not enable the listener automatically.",
+  }),
   compaction: ConfigCompaction.Info.pipe(optional).annotate({
     description: "Conversation compaction behavior",
   }),
@@ -114,7 +118,8 @@ export class Info extends Schema.Class<Info>("Config.Info")({
 }) {}
 
 export const Patch = Schema.Struct({
-  shell: Schema.NullOr(Schema.String),
+  shell: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  mcpRelay: Schema.optionalKey(Schema.NullOr(ConfigMcpRelay.Info)),
 }).annotate({ identifier: "Config.Patch" })
 export interface Patch extends Schema.Schema.Type<typeof Patch> {}
 

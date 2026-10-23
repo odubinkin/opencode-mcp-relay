@@ -32,6 +32,7 @@ import {
   useDialog,
 } from "../ui/dialog"
 import { DialogPrompt } from "../ui/dialog-prompt"
+import { DialogMcpRelay } from "./dialog-mcp-relay"
 import { DialogSelect } from "../ui/dialog-select"
 import { Link } from "../ui/link"
 import { useToast } from "../ui/toast"
@@ -124,31 +125,43 @@ export function DialogIntegration(
   })
 
   const options = createMemo(() => {
-    return integrations().map((integration) => {
-      const methods = connectMethods(integration)
-      const credentials = credentialConnections(integration)
-      let category = "Services"
-      if (integration.id in INTEGRATION_PRIORITY) category = "Popular"
-      if (integration.metadata?.source === "mcp") category = "MCP"
-      const status = integration.connections[0]?.status
-      return {
-        title: integration.name,
-        value: integration.id,
-        description: methods.length === 0 ? "Environment only" : undefined,
-        footer: status ? "Sign in required →" : connectionSummary(integration) || undefined,
-        footerColor: status ? theme.text.feedback.warning.base : undefined,
-        category,
-        disabled: methods.length === 0 && credentials.length === 0,
-        gutter:
-          integration.connections.length > 0 && !status
-            ? () => <text fg={theme.text.feedback.success.base}>✓</text>
-            : undefined,
-        onSelect: () => {
-          if (credentials.length) return manageConnections(integration, methods, location, dialog, props.onConnected)
-          return selectMethod(integration, methods, location, dialog, props.onConnected)
-        },
-      }
-    })
+    return [
+      ...integrations().map((integration) => {
+        const methods = connectMethods(integration)
+        const credentials = credentialConnections(integration)
+        let category = "Services"
+        if (integration.id in INTEGRATION_PRIORITY) category = "Popular"
+        if (integration.metadata?.source === "mcp") category = "MCP"
+        const status = integration.connections[0]?.status
+        return {
+          title: integration.name,
+          value: integration.id,
+          description: methods.length === 0 ? "Environment only" : undefined,
+          footer: status ? "Sign in required →" : connectionSummary(integration) || undefined,
+          footerColor: status ? theme.text.feedback.warning.base : undefined,
+          category,
+          disabled: methods.length === 0 && credentials.length === 0,
+          gutter:
+            integration.connections.length > 0 && !status
+              ? () => <text fg={theme.text.feedback.success.base}>✓</text>
+              : undefined,
+          onSelect: () => {
+            if (credentials.length) return manageConnections(integration, methods, location, dialog, props.onConnected)
+            return selectMethod(integration, methods, location, dialog, props.onConnected)
+          },
+        }
+      }),
+      ...(props.integrationID
+        ? []
+        : [
+            {
+              title: "MCP Relay Mode",
+              value: "_mcp-relay",
+              category: "MCP",
+              onSelect: () => dialog.replace(() => <DialogMcpRelay />),
+            },
+          ]),
+    ]
   })
 
   return (

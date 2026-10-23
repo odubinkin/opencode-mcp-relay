@@ -170,6 +170,7 @@ export const Definitions = {
   "model.cycle_favorite_reverse": keybind("none", "Previous favorite model"),
   "mcp.list": keybind("none", "List MCP servers"),
   "provider.connect": keybind("none", "Connect integration"),
+  "mcp.relay.mode": keybind("none", "MCP Relay Mode"),
   "agent.list": keybind("<leader>a", "List agents"),
   "agent.cycle": keybind("shift+tab", "Next agent"),
   "agent.cycle.reverse": keybind("none", "Previous agent"),

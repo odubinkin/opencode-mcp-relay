@@ -1,9 +1,11 @@
 import { Mcp } from "@opencode/core/mcp/index"
+import { Location } from "@opencode/core/location"
+import { McpRelay } from "../mcp/relay"
 import { McpServerNotFoundError } from "@opencode/protocol/errors"
 import { Effect } from "effect"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
 import { Api } from "../api"
-import { response } from "../location"
+import { locationErrors, response } from "../location"
 
 const notFound = <A, R>(effect: Effect.Effect<A, Mcp.NotFoundError, R>) =>
   effect.pipe(Effect.mapError((error) => new McpServerNotFoundError({ server: error.server, message: error.message })))
@@ -11,6 +13,45 @@ const notFound = <A, R>(effect: Effect.Effect<A, Mcp.NotFoundError, R>) =>
 export const McpHandler = HttpApiBuilder.group(Api, "server.mcp", (handlers) =>
   Effect.gen(function* () {
     return handlers
+      .handle(
+        "mcp.relay.status",
+        Effect.fn(function* () {
+          const relay = yield* McpRelay.Service
+          const location = yield* Location.Service
+          return yield* locationErrors(relay.status(location.directory))
+        }),
+      )
+      .handle(
+        "mcp.relay.configure",
+        Effect.fn(function* (ctx) {
+          const relay = yield* McpRelay.Service
+          const location = yield* Location.Service
+          return yield* locationErrors(relay.configure(location.directory, ctx.payload))
+        }),
+      )
+      .handle(
+        "mcp.relay.start",
+        Effect.fn(function* () {
+          const relay = yield* McpRelay.Service
+          const location = yield* Location.Service
+          return yield* relay.start(location.directory)
+        }),
+      )
+      .handle(
+        "mcp.relay.stop",
+        Effect.fn(function* () {
+          const relay = yield* McpRelay.Service
+          const location = yield* Location.Service
+          return yield* locationErrors(relay.stop(location.directory))
+        }),
+      )
+      .handle(
+        "mcp.relay.secrets",
+        Effect.fn(function* () {
+          const relay = yield* McpRelay.Service
+          return yield* relay.secrets
+        }),
+      )
       .handle(
         "mcp.list",
         Effect.fn(function* () {

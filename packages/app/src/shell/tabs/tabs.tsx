@@ -91,6 +91,7 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
     const currentRoute = useCurrentRoute()
 
     const closing = new Set<string>()
+    const beforeSessionClose = new Set<(tab: SessionTab) => boolean | Promise<boolean>>()
     let recentWrite = 0
     let recentValue: string | undefined
 
@@ -411,13 +412,23 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
       // User-initiated close: records the tab so it can be reopened.
       // Cleanup paths (missing sessions, archive, server removal) go through
       // removeTab and friends directly and are not recorded.
-      closeTab(index: number) {
+      beforeSessionClose(handler: (tab: SessionTab) => boolean | Promise<boolean>) {
+        beforeSessionClose.add(handler)
+        return () => beforeSessionClose.delete(handler)
+      },
+      async closeTab(index: number) {
         const tab = store[index]
 
         if (!tab) return
 
+        if (tab.type === "session") {
+          const allowed = await Promise.all([...beforeSessionClose].map((handler) => handler(tab)))
+          if (allowed.includes(false)) return
+        }
+        const current = store.findIndex((item) => tabKey(item) === tabKey(tab))
+        if (current === -1) return
         if (tab.type === "session") updateClosed((stack) => pushClosedTab(stack, tab, index, info[tabKey(tab)]))
-        removeTab(index)
+        removeTab(current)
       },
       reopenClosedTab(target?: SessionTab, options?: { append?: boolean }) {
         if (!closedReady()) {

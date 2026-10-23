@@ -148,6 +148,16 @@ import type {
   IntegrationCommandStatusOutput,
   IntegrationCommandCancelInput,
   IntegrationCommandCancelOutput,
+  McpRelayStatusInput,
+  McpRelayStatusOutput,
+  McpRelayConfigureInput,
+  McpRelayConfigureOutput,
+  McpRelayStartInput,
+  McpRelayStartOutput,
+  McpRelayStopInput,
+  McpRelayStopOutput,
+  McpRelaySecretsInput,
+  McpRelaySecretsOutput,
   McpListInput,
   McpListOutput,
   McpAddInput,
@@ -1047,6 +1057,34 @@ const adaptGroupIntegration = (raw: RawClient["server.integration"]) => ({
   },
 })
 
+const EndpointMcpRelayStatus = (raw: RawClient["server.mcp"]) => (input?: McpRelayStatusInput) =>
+  preserveEffect<McpRelayStatusOutput>()(
+    raw["mcp.relay.status"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointMcpRelayConfigure = (raw: RawClient["server.mcp"]) => (input: McpRelayConfigureInput) =>
+  preserveEffect<McpRelayConfigureOutput>()(
+    raw["mcp.relay.configure"]({
+      query: { location: input["location"] },
+      payload: { settings: input["settings"], clientSecret: input["clientSecret"], password: input["password"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointMcpRelayStart = (raw: RawClient["server.mcp"]) => (input?: McpRelayStartInput) =>
+  preserveEffect<McpRelayStartOutput>()(
+    raw["mcp.relay.start"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointMcpRelayStop = (raw: RawClient["server.mcp"]) => (input?: McpRelayStopInput) =>
+  preserveEffect<McpRelayStopOutput>()(
+    raw["mcp.relay.stop"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointMcpRelaySecrets = (raw: RawClient["server.mcp"]) => (input?: McpRelaySecretsInput) =>
+  preserveEffect<McpRelaySecretsOutput>()(
+    raw["mcp.relay.secrets"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
 const EndpointMcpList = (raw: RawClient["server.mcp"]) => (input?: McpListInput) =>
   preserveEffect<McpListOutput>()(
     raw["mcp.list"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
@@ -1088,6 +1126,13 @@ const EndpointMcpResourceCatalog = (raw: RawClient["server.mcp"]) => (input?: Mc
   )
 
 const adaptGroupMcp = (raw: RawClient["server.mcp"]) => ({
+  relay: {
+    status: EndpointMcpRelayStatus(raw),
+    configure: EndpointMcpRelayConfigure(raw),
+    start: EndpointMcpRelayStart(raw),
+    stop: EndpointMcpRelayStop(raw),
+    secrets: EndpointMcpRelaySecrets(raw),
+  },
   list: EndpointMcpList(raw),
   add: EndpointMcpAdd(raw),
   remove: EndpointMcpRemove(raw),
@@ -1656,9 +1701,11 @@ const EndpointConfigGet = (raw: RawClient["server.config"]) => (input?: ConfigGe
 const EndpointConfigShells = (raw: RawClient["server.config"]) => () =>
   preserveEffect<ConfigShellsOutput>()(raw["config.shells"]({}).pipe(Effect.mapError(mapClientError)))
 
-const EndpointConfigUpdate = (raw: RawClient["server.config"]) => (input: ConfigUpdateInput) =>
+const EndpointConfigUpdate = (raw: RawClient["server.config"]) => (input?: ConfigUpdateInput) =>
   preserveEffect<ConfigUpdateOutput>()(
-    raw["config.update"]({ payload: { shell: input["shell"] } }).pipe(Effect.mapError(mapClientError)),
+    raw["config.update"]({ payload: { shell: input?.["shell"], mcpRelay: input?.["mcpRelay"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
   )
 
 const adaptGroupConfig = (raw: RawClient["server.config"]) => ({

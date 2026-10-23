@@ -1,5 +1,15 @@
 import { createSimpleContext } from "@opencode/ui/context"
-import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, untrack } from "solid-js"
+import {
+  Accessor,
+  batch,
+  createEffect,
+  createMemo,
+  createResource,
+  createRoot,
+  getOwner,
+  onCleanup,
+  untrack,
+} from "solid-js"
 import { createServerProjects, RECENTLY_CLOSED_DISPLAY_LIMIT, ServerConnection, useServers } from "./registry"
 import { pathKey } from "@/workspaces/path-key"
 import { useServerHealth } from "@/runtime/server/health"
@@ -20,11 +30,14 @@ import { useSettings } from "@/settings/model"
 import { timelinePreset } from "@opencode/session-ui/timeline/detail"
 import type { SessionInfo } from "@opencode/client/promise"
 import { resolveProjectForSession, resolveSessionDetailsProject } from "@/shell/layout/helpers"
+import { useTabs } from "@/shell/tabs/tabs"
 
 export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext({
   name: "Global",
   init: () => {
     const server = useServers()
+    const tabs = useTabs()
+    const language = useLanguage()
 
     const serverHealth = useServerHealth(
       () => server.list,
@@ -39,6 +52,30 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
     // The credentials each controller started with, as plain values: the listed connection is a store proxy that
     // already reads the new password once the user saves it.
     const serverCtxCredentials = new Map<ServerConnection.Key, string>()
+
+    onCleanup(
+      tabs.beforeSessionClose(async (tab) => {
+        const ctx = serverCtxs.get(tab.server)
+        const session = ctx?.data.session.get(tab.sessionId)
+        if (!ctx || session?.driver !== "external") return true
+        return ctx.sdk.api.mcp.relay
+          .status({ location: session.location })
+          .then(async (status) => {
+            if (status.running && status.sessionID === session.id) {
+              await ctx.sdk.api.mcp.relay.stop({ location: session.location })
+            }
+            return true
+          })
+          .catch((error) => {
+            showToast({
+              variant: "error",
+              title: language.t("common.requestFailed"),
+              description: formatServerError(error, language.t),
+            })
+            return false
+          })
+      }),
+    )
 
     const owner = getOwner()
 
