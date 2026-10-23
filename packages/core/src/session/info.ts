@@ -23,6 +23,7 @@ export function fromRow(row: typeof SessionTable.$inferSelect): SessionSchema.In
           }
         : undefined,
     agent: row.agent ?? undefined,
+    driver: row.driver ?? undefined,
     model: row.model
       ? {
           id: Model.ID.make(row.model.id),

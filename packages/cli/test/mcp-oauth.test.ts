@@ -6,6 +6,9 @@ import path from "node:path"
 import { McpOAuth } from "../src/mcp/oauth"
 import { McpServer } from "../src/mcp/server"
 import { tmpdir } from "./fixture/tmpdir"
+import { McpRuntime } from "@opencode/server/mcp-runtime"
+import { Effect } from "effect"
+import { it } from "../../core/test/lib/effect"
 
 const options = {
   issuer: "https://opencode.example.com",
@@ -16,81 +19,94 @@ const options = {
 }
 const resource = `${options.issuer}/mcp`
 
-test("discovers OAuth and uses a PKCE grant to access HTTP MCP tools", async () => {
-  await using directory = await tmpdir()
-  const log: string[] = []
-  using server = {
-    ...McpServer.listen(directory.path, {
-      hostname: "127.0.0.1",
-      port: 0,
-      oauth: options,
-      onRequest: (event) => log.push(JSON.stringify(event)),
-    }),
-    [Symbol.dispose]() {
-      this.close()
-    },
-  }
-  const origin = new URL(server.url).origin
-  const unauthorized = await fetch(server.url)
-  expect(unauthorized.status).toBe(401)
-  expect(unauthorized.headers.get("www-authenticate")).toContain(
-    `${options.issuer}/.well-known/oauth-protected-resource/mcp`,
-  )
-  expect(await (await fetch(`${origin}/.well-known/oauth-protected-resource/mcp`)).json()).toMatchObject({
-    resource,
-    authorization_servers: [options.issuer],
-    scopes_supported: ["opencode:tools"],
-  })
-  expect(await (await fetch(`${origin}/.well-known/oauth-authorization-server`)).json()).toMatchObject({
-    issuer: options.issuer,
-    code_challenge_methods_supported: ["S256"],
-    token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
-  })
-  const request = (url: string, init?: RequestInit) => fetch(url.replace(options.issuer, origin), init)
-  const grant = await authorization(request)
-  const response = await request(`${options.issuer}/oauth/token`, form(grant))
-  expect(response.status).toBe(200)
-  const tokens = await response.json()
-  const client = new Client({ name: "oauth-test", version: "1.0.0" })
-  await client.connect(
-    new StreamableHTTPClientTransport(new URL(server.url), {
-      requestInit: { headers: { Authorization: `Bearer ${tokens.access_token}` } },
-    }),
-  )
-  try {
-    const tools = await client.listTools()
-    expect(tools.tools[0]).toMatchObject({
-      _meta: { securitySchemes: [{ type: "oauth2", scopes: ["opencode:tools"] }] },
-    })
-    expect(await client.callTool({ name: "list_directory", arguments: {} })).not.toHaveProperty("isError", true)
-    expect(log.some((line) => line.includes('"rpc":"tools/list"'))).toBe(true)
-    expect(log.join("\n")).not.toContain(tokens.access_token)
-    expect(log.join("\n")).not.toContain(options.password)
-    expect(log.join("\n")).not.toContain(options.clientSecret)
-    // Knowing the MCP session ID must not bypass the HTTP authorization check.
-    expect((await fetch(server.url, { headers: { "mcp-session-id": "known-session" } })).status).toBe(401)
-    expect((await request(`${options.issuer}/oauth/token`, form(grant))).status).toBe(400)
-    const renewed = await request(`${options.issuer}/oauth/token`, {
-      ...form({ grant_type: "refresh_token", refresh_token: tokens.refresh_token, resource }),
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${Buffer.from(`${options.clientID}:${options.clientSecret}`).toString("base64")}`,
+it.live("discovers OAuth and uses a PKCE grant to access HTTP MCP tools", () =>
+  Effect.gen(function* () {
+    const directory = yield* Effect.acquireDisposable(Effect.promise(() => tmpdir()))
+    const runtime = yield* McpRuntime.make({
+      directory: directory.path,
+      server: {
+        database: { path: ":memory:" },
+        config: { directory: directory.path, project: false },
+        models: { fetch: false },
+        fs: { filewatcher: false },
       },
     })
-    expect(renewed.status).toBe(200)
-    expect((await renewed.json()).access_token).not.toBe(tokens.access_token)
-    expect(
-      (
-        await request(
-          `${options.issuer}/oauth/token`,
-          form({ ...grant, grant_type: "refresh_token", refresh_token: tokens.refresh_token }),
-        )
-      ).status,
-    ).toBe(400)
-  } finally {
-    await client.close()
-  }
-})
+    yield* Effect.promise(async () => {
+      const log: string[] = []
+      using server = {
+        ...McpServer.listen(runtime, {
+          hostname: "127.0.0.1",
+          port: 0,
+          oauth: options,
+          onRequest: (event) => log.push(JSON.stringify(event)),
+        }),
+        [Symbol.dispose]() {
+          this.close()
+        },
+      }
+      const origin = new URL(server.url).origin
+      const unauthorized = await fetch(server.url)
+      expect(unauthorized.status).toBe(401)
+      expect(unauthorized.headers.get("www-authenticate")).toContain(
+        `${options.issuer}/.well-known/oauth-protected-resource/mcp`,
+      )
+      expect(await (await fetch(`${origin}/.well-known/oauth-protected-resource/mcp`)).json()).toMatchObject({
+        resource,
+        authorization_servers: [options.issuer],
+        scopes_supported: ["opencode:tools"],
+      })
+      expect(await (await fetch(`${origin}/.well-known/oauth-authorization-server`)).json()).toMatchObject({
+        issuer: options.issuer,
+        code_challenge_methods_supported: ["S256"],
+        token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
+      })
+      const request = (url: string, init?: RequestInit) => fetch(url.replace(options.issuer, origin), init)
+      const grant = await authorization(request)
+      const response = await request(`${options.issuer}/oauth/token`, form(grant))
+      expect(response.status).toBe(200)
+      const tokens = await response.json()
+      const client = new Client({ name: "oauth-test", version: "1.0.0" })
+      await client.connect(
+        new StreamableHTTPClientTransport(new URL(server.url), {
+          requestInit: { headers: { Authorization: `Bearer ${tokens.access_token}` } },
+        }),
+      )
+      try {
+        const tools = await client.listTools()
+        expect(tools.tools[0]).toMatchObject({
+          _meta: { securitySchemes: [{ type: "oauth2", scopes: ["opencode:tools"] }] },
+        })
+        expect(await client.callTool({ name: "opencode_context", arguments: {} })).not.toHaveProperty("isError", true)
+        expect(log.some((line) => line.includes('"rpc":"tools/list"'))).toBe(true)
+        expect(log.join("\n")).not.toContain(tokens.access_token)
+        expect(log.join("\n")).not.toContain(options.password)
+        expect(log.join("\n")).not.toContain(options.clientSecret)
+        // Knowing the MCP session ID must not bypass the HTTP authorization check.
+        expect((await fetch(server.url, { headers: { "mcp-session-id": "known-session" } })).status).toBe(401)
+        expect((await request(`${options.issuer}/oauth/token`, form(grant))).status).toBe(400)
+        const renewed = await request(`${options.issuer}/oauth/token`, {
+          ...form({ grant_type: "refresh_token", refresh_token: tokens.refresh_token, resource }),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            Authorization: `Basic ${Buffer.from(`${options.clientID}:${options.clientSecret}`).toString("base64")}`,
+          },
+        })
+        expect(renewed.status).toBe(200)
+        expect((await renewed.json()).access_token).not.toBe(tokens.access_token)
+        expect(
+          (
+            await request(
+              `${options.issuer}/oauth/token`,
+              form({ ...grant, grant_type: "refresh_token", refresh_token: tokens.refresh_token }),
+            )
+          ).status,
+        ).toBe(400)
+      } finally {
+        await client.close()
+      }
+    })
+  }),
+)
 
 test("rejects forged authorization requests and does not issue codes without the MCP password", async () => {
   const oauth = McpOAuth.make(options)

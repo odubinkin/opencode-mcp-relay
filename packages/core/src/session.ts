@@ -87,6 +87,7 @@ type CreateBaseInput = {
   id?: SessionSchema.ID
   title?: string
   agent?: Agent.ID
+  driver?: SessionSchema.Info["driver"]
   model?: Model.Ref
   metadata?: SessionSchema.Metadata
   permissions?: Permission.Ruleset
@@ -295,6 +296,7 @@ const layer = Layer.effect(
               subpath: RelativePath.make(path.relative(project.directory, location.directory).replaceAll("\\", "/")),
               title: input.title,
               agent: input.agent,
+              driver: input.driver,
               // Children inherit metadata and permissions the way they inherit
               // location, so host policies that read them treat the family uniformly.
               metadata: input.metadata ?? parent?.metadata,

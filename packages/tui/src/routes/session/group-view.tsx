@@ -87,7 +87,7 @@ function GroupContent(props: GroupProps) {
       ? []
       : refs().flatMap((ref) => {
           const message = props.message(ref.messageID)
-          if (message?.type !== "assistant") return []
+          if (message?.type !== "assistant" && message?.type !== "tool") return []
           const part = resolvePart(message, ref.partID)
           return part?.type === "tool" ? [part] : []
         }),

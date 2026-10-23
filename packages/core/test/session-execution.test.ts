@@ -33,6 +33,22 @@ const it = testEffect(
 )
 
 describe("SessionExecution lifecycle", () => {
+  it.effect("external sessions never start an internal runner or acquire an LLM execution claim", () =>
+    Effect.gen(function* () {
+      const database = yield* Database.Service
+      const sessionID = Session.ID.make("ses_external_driver")
+      yield* seedSessions(database, [sessionID], { driver: "external" })
+      const scope = yield* Scope.make()
+      yield* Effect.addFinalizer(() => Scope.close(scope, Exit.void))
+      const context = yield* buildExecution(scope, () => Effect.die("external session started an LLM"))
+      const execution = Context.get(context, SessionExecution.Service)
+      yield* execution.wake(sessionID)
+      yield* execution.resume(sessionID)
+      expect(yield* execution.isActive(sessionID)).toBe(false)
+      expect((yield* claims(database))[sessionID]).toBe(false)
+    }),
+  )
+
   test("classifies success and typed failure terminals", () => {
     expect(SessionExecution.terminal(Exit.succeed(undefined))).toEqual({ type: "succeeded" })
     expect(
@@ -1284,7 +1300,9 @@ function seedInbox(
 function seedSessions(
   database: Database.Service["Service"],
   sessionIDs: ReadonlyArray<Session.ID>,
-  values: Partial<Pick<typeof SessionTable.$inferInsert, "time_suspended" | "resume_attempts" | "parent_id">> = {},
+  values: Partial<
+    Pick<typeof SessionTable.$inferInsert, "time_suspended" | "resume_attempts" | "parent_id" | "driver">
+  > = {},
 ) {
   return Effect.gen(function* () {
     yield* database.db

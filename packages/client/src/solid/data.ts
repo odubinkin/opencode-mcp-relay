@@ -474,10 +474,19 @@ export function createData(config: CreateDataInput) {
       })
     },
     editTool(sessionID: string, messageID: string, toolID: string, fn: (tool: SessionMessageAssistantTool) => void) {
-      message.editAssistant(sessionID, messageID, (assistant) => {
-        const tool = assistant.content.findLast(
-          (item): item is SessionMessageAssistantTool => item.type === "tool" && item.id === toolID,
-        )
+      message.update(sessionID, (draft, index) => {
+        const position = index.get(messageID)
+        const owner = position === undefined ? undefined : draft[position]
+        const tool =
+          owner?.type === "tool"
+            ? owner.tool.id === toolID
+              ? owner.tool
+              : undefined
+            : owner?.type === "assistant"
+              ? owner.content.findLast(
+                  (item): item is SessionMessageAssistantTool => item.type === "tool" && item.id === toolID,
+                )
+              : undefined
         if (tool) fn(tool)
       })
     },
@@ -965,6 +974,21 @@ export function createData(config: CreateDataInput) {
       case "session.text.ended":
         message.editText(event.data.sessionID, event.data.assistantMessageID, (text) => {
           text.text = event.data.text
+        })
+        return
+      case "session.tool.started":
+        message.insert(event.data.sessionID, {
+          id: event.data.assistantMessageID,
+          type: "tool",
+          metadata: event.metadata,
+          time: { created: event.created },
+          tool: {
+            type: "tool",
+            id: event.data.id,
+            name: event.data.name,
+            time: { created: event.created, ran: event.created },
+            state: { status: "running", input: event.data.input, metadata: {} },
+          },
         })
         return
       case "session.tool.input.started":

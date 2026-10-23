@@ -11,7 +11,7 @@ import { reasoningContent } from "./message-parts"
 import { resolvePart } from "./rows"
 
 type Item = {
-  message: SessionMessageAssistant
+  message: Pick<SessionMessageAssistant, "time">
   part: SessionMessageAssistantReasoning | SessionMessageAssistantTool
 }
 
@@ -31,7 +31,7 @@ export function summarizeActivity(
     if (entry.type !== "part") return []
     if (pending.some((ref) => ref.messageID === entry.ref.messageID && ref.partID === entry.ref.partID)) return []
     const item = message(entry.ref.messageID)
-    if (item?.type !== "assistant") return []
+    if (item?.type !== "assistant" && item?.type !== "tool") return []
     const part = resolvePart(item, entry.ref.partID)
     return part?.type === "reasoning" || part?.type === "tool" ? [{ entry, message: item, part }] : []
   })

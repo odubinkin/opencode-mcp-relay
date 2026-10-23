@@ -210,11 +210,27 @@ Manages MCP (Model Context Protocol) servers.
 $ opencode mcp list
 ```
 
-Start a local MCP server for an external model. It communicates over stdio and exposes directory listing, file reads and edits, and shell commands in the selected project. It grants the connected client full local permissions.
+Start a local MCP server for an external model. It uses the real OpenCode Location runtime and exports its registered tools directly, including plugin and upstream MCP tools normally grouped into CodeMode. Native agent/session permissions still apply. The subagent tool is excluded and cannot be called: this mode does not use an internal model.
 
 ```bash
 $ opencode mcp serve /path/to/project
 ```
+
+Call `opencode_context` before working to obtain the selected agent's prompt, global/project instructions, available agents and skills. `opencode_agent` selects another prompt and its permissions without running a model. The native `skill` tool loads skills through OpenCode's normal discovery and permission logic. Context is also available as the `opencode` MCP prompt and `opencode://session/context` resource. Nested `AGENTS.md` instructions discovered by file reads are included in tool responses; `opencode_updates` also retrieves user input and completed background shell jobs.
+
+MCP keeps a durable external Session in its state directory, independent of OAuth tokens and MCP transport IDs. Restarting in the same project restores it; changing the configured directory starts a new Session without deleting the old history. The standalone defaults to `runtime/` beside its env file; the CLI uses its global `mcp-runtime` state directory. Set `OPENCODE_MCP_STATE_DIRECTORY` to isolate another project. Direct calls use OpenCode's native tool lifecycle and TUI/GUI cards: file paths, search patterns, shell commands and output, edit/patch previews, errors and cancellation. They do not create internal model steps or usage records. Older text activity entries remain unchanged.
+
+### Answer questions and permissions in OpenCode
+
+A private native API starts on `http://127.0.0.1:4098` (override with `OPENCODE_MCP_UI_PORT`). Connect the TUI explicitly to this API and open the MCP Session. MCP does not connect to or replace the managed background service; a TUI/GUI attached to another server will not see these requests.
+
+```bash
+OPENCODE_PASSWORD="your-native-api-password" opencode --server http://127.0.0.1:4098 /path/to/project
+```
+
+Set `OPENCODE_MCP_UI_PASSWORD` to that password, or read the generated URL, password and Session ID from the owner-only `runtime/ui-connection.json`. A GUI supporting custom servers can use that URL, username `opencode` and password. Only expose the OAuth MCP port through your HTTPS tunnel, not the native API. Pending calls wait for an answer or cancellation; disconnecting the MCP client cancels its active requests. Sessions driven externally never wake the built-in model runner, even after background tasks complete or the UI admits new input.
+
+The standalone entry point also accepts `--attach`: it opens that Session in a sibling `opencode` executable (or the CLI on `PATH`) and reads the private connection file automatically.
 
 Use Streamable HTTP when an MCP client must connect over the network. HTTP listens on `127.0.0.1:4096` by default; use `--hostname` and `--port` to change it.
 
@@ -230,7 +246,7 @@ Set `OPENCODE_MCP_OAUTH_ISSUER` to the public HTTPS origin that forwards to this
 
 In ChatGPT's MCP server settings, select **OAuth** and copy `OPENCODE_MCP_OAUTH_CLIENT_ID` and `OPENCODE_MCP_OAUTH_CLIENT_SECRET` into **Client ID** and **Client Secret**. Set `OPENCODE_MCP_OAUTH_REDIRECT_URIS` to the exact redirect URI shown there; multiple URIs are comma-separated. The server supports issuer identification and includes `iss` in authorization responses. The example uses ChatGPT's stable callback `https://chatgpt.com/connector_platform_oauth_redirect`.
 
-When linking the connection, enter `OPENCODE_MCP_OAUTH_PASSWORD` on the OpenCode MCP confirmation page. This is a separate MCP access password that you configure, not an OpenCode account, background service password, or OpenAI password. Generate different random values for the client secret and this password. Successful authorization grants the `opencode:tools` scope and full access to the exposed tools.
+When linking the connection, enter `OPENCODE_MCP_OAUTH_PASSWORD` on the OpenCode MCP confirmation page. This is a separate MCP access password that you configure, not an OpenCode account, background service password, or OpenAI password. Generate different random values for the client secret and this password. Successful authorization grants the `opencode:tools` scope and access to the exported tools, subject to the selected OpenCode agent's permissions.
 
 For source development, Bun loads `.env` from the CLI directory:
 

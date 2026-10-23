@@ -57,6 +57,7 @@ export const Created = Event.durable({
     slug: Schema.String,
     title: Schema.String.pipe(optional),
     agent: Agent.ID.pipe(optional),
+    driver: Schema.Literal("external").pipe(optional),
     model: Model.Ref.pipe(optional),
     /** Host-supplied annotations resolved at creation, including any inherited from a parent. */
     metadata: SessionMetadata.pipe(optional),
@@ -482,9 +483,22 @@ export namespace Reasoning {
 export namespace Tool {
   const ToolBase = {
     ...Base,
+    /** Owning transcript message; the historical field name also covers standalone tool messages. */
     assistantMessageID: SessionMessage.ID,
     id: Schema.String,
   }
+
+  /** Begin a standalone invocation; subsequent progress and outcome events use the normal tool lifecycle. */
+  export const Started = Event.durable({
+    type: "session.tool.started",
+    ...options,
+    schema: {
+      ...ToolBase,
+      name: Schema.String,
+      input: Schema.Record(Schema.String, Schema.Unknown),
+    },
+  })
+  export type Started = typeof Started.Type
 
   export namespace Input {
     export const Started = Event.durable({
@@ -697,6 +711,7 @@ export const Definitions = Event.inventory(
   Reasoning.Started,
   Reasoning.Delta,
   Reasoning.Ended,
+  Tool.Started,
   Tool.Input.Started,
   Tool.Input.Delta,
   Tool.Input.Ended,

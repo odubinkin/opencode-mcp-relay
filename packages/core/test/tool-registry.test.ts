@@ -74,6 +74,28 @@ const transform = (service: Tool.Interface, tools: Readonly<Record<string, Info>
   )
 
 describe("Tool", () => {
+  it.effect(
+    "exports CodeMode and namespaced tools directly without changing captured execution or deny filtering",
+    () =>
+      Effect.gen(function* () {
+        const service = yield* Tool.Service
+        yield* transform(service, { echo: constant("original") }, { namespace: "plugin" })
+        const direct = yield* service.snapshot([], "direct")
+        expect(direct.definitions.map((tool) => tool.name)).toEqual(["plugin_echo"])
+        expect(direct.codeModeCatalog).toBeUndefined()
+        expect((yield* service.snapshot()).definitions.map((tool) => tool.name)).toEqual(["execute"])
+        yield* transform(service, { echo: constant("replacement") }, { namespace: "plugin" })
+        expect((yield* direct.execute(call("plugin_echo"))).content).toEqual([{ type: "text", text: "original" }])
+        const replacement = yield* service.snapshot([], "direct")
+        expect((yield* replacement.execute(call("plugin_echo"))).content).toEqual([
+          { type: "text", text: "replacement" },
+        ])
+        const denied = yield* service.snapshot([{ action: "plugin_*", resource: "*", effect: "deny" }], "direct")
+        expect(denied.definitions).toEqual([])
+        expect((yield* denied.execute(call("plugin_echo")).pipe(Effect.flip)).message).toContain("No tool named")
+      }),
+  )
+
   it.effect("reads the current editor tools by effective name", () =>
     Effect.gen(function* () {
       const service = yield* Tool.Service

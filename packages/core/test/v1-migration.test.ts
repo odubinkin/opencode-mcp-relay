@@ -58,6 +58,7 @@ const session = (
   revert: null,
   permission: null,
   agent: null,
+  driver: null,
   model: null,
   time_created: 1,
   time_updated: 2,

@@ -8,10 +8,10 @@ export interface Adapter {
   readonly getModel: () => Effect.Effect<SessionMessage.ModelSelected["model"] | undefined>
   readonly getLocation: () => Effect.Effect<SessionMessage.LocationSwitched["previous"]>
   readonly getCurrentAssistant: () => Effect.Effect<SessionMessage.Assistant | undefined>
-  readonly getAssistant: (messageID: SessionMessage.ID) => Effect.Effect<SessionMessage.Assistant | undefined>
+  readonly getMessage: (messageID: SessionMessage.ID) => Effect.Effect<SessionMessage.Info | undefined>
   readonly getShell: (shellID: SessionMessage.Shell["shellID"]) => Effect.Effect<SessionMessage.Shell | undefined>
   readonly getCompaction: () => Effect.Effect<SessionMessage.Compaction | undefined>
-  readonly updateAssistant: (assistant: SessionMessage.Assistant) => Effect.Effect<void>
+  readonly updateMessage: (message: SessionMessage.Info) => Effect.Effect<void>
   readonly updateShell: (shell: SessionMessage.Shell) => Effect.Effect<void>
   readonly updateCompaction: (compaction: SessionMessage.Compaction) => Effect.Effect<void>
   readonly appendMessage: (message: SessionMessage.Info) => Effect.Effect<void>
@@ -47,15 +47,27 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
 
   const updateOwnedAssistant = (messageID: SessionMessage.ID, recipe: (draft: DraftAssistant) => void) =>
     Effect.gen(function* () {
-      const assistant = yield* adapter.getAssistant(messageID)
-      if (!assistant) return
-      yield* adapter.updateAssistant(produce(assistant, recipe))
+      const assistant = yield* adapter.getMessage(messageID)
+      if (assistant?.type !== "assistant") return
+      yield* adapter.updateMessage(produce(assistant, recipe))
+    })
+
+  const updateOwnedTool = (messageID: SessionMessage.ID, id: string, recipe: (draft: DraftTool) => void) =>
+    Effect.gen(function* () {
+      const message = yield* adapter.getMessage(messageID)
+      if (message?.type !== "assistant" && message?.type !== "tool") return
+      yield* adapter.updateMessage(
+        produce(message, (draft) => {
+          const tool = draft.type === "tool" ? (draft.tool.id === id ? draft.tool : undefined) : latestTool(draft, id)
+          if (tool) recipe(tool)
+        }),
+      )
     })
 
   const clearCurrentRetry = Effect.gen(function* () {
     const assistant = yield* adapter.getCurrentAssistant()
     if (!assistant?.retry) return
-    yield* adapter.updateAssistant(
+    yield* adapter.updateMessage(
       produce(assistant, (draft) => {
         draft.retry = undefined
       }),
@@ -216,9 +228,9 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
         }),
       "session.step.started": (event) =>
         Effect.gen(function* () {
-          const existing = yield* adapter.getAssistant(event.data.assistantMessageID)
-          if (existing) {
-            yield* adapter.updateAssistant(
+          const existing = yield* adapter.getMessage(event.data.assistantMessageID)
+          if (existing?.type === "assistant") {
+            yield* adapter.updateMessage(
               produce(existing, (draft) => {
                 draft.agent = event.data.agent
                 draft.model = castDraft(event.data.model)
@@ -237,7 +249,7 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
           }
           const currentAssistant = yield* adapter.getCurrentAssistant()
           if (currentAssistant) {
-            yield* adapter.updateAssistant(
+            yield* adapter.updateMessage(
               produce(currentAssistant, (draft) => {
                 draft.retry = undefined
                 draft.time.completed = created
@@ -302,6 +314,22 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
           }
         })
       },
+      "session.tool.started": (event) =>
+        adapter.appendMessage(
+          SessionMessage.Tool.make({
+            id: event.data.assistantMessageID,
+            type: "tool",
+            metadata: event.metadata,
+            time: { created },
+            tool: {
+              type: "tool",
+              id: event.data.id,
+              name: event.data.name,
+              time: { created, ran: created },
+              state: { status: "running", input: event.data.input, metadata: {} },
+            },
+          }),
+        ),
       "session.tool.input.started": (event) => {
         return updateOwnedAssistant(event.data.assistantMessageID, (draft) => {
           draft.content.push(
@@ -318,14 +346,12 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
         })
       },
       "session.tool.input.ended": (event) => {
-        return updateOwnedAssistant(event.data.assistantMessageID, (draft) => {
-          const match = latestTool(draft, event.data.id)
+        return updateOwnedTool(event.data.assistantMessageID, event.data.id, (match) => {
           if (match && match.state.status === "streaming") match.state.input = event.data.text
         })
       },
       "session.tool.called": (event) => {
-        return updateOwnedAssistant(event.data.assistantMessageID, (draft) => {
-          const match = latestTool(draft, event.data.id)
+        return updateOwnedTool(event.data.assistantMessageID, event.data.id, (match) => {
           if (match) {
             match.executed = event.data.executed
             match.native = event.data.native
@@ -343,8 +369,7 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
       // Terminal tool events are self-contained; projection is a direct copy and
       // never reaches into ephemeral progress history.
       "session.tool.success": (event) => {
-        return updateOwnedAssistant(event.data.assistantMessageID, (draft) => {
-          const match = latestTool(draft, event.data.id)
+        return updateOwnedTool(event.data.assistantMessageID, event.data.id, (match) => {
           if (match && match.state.status === "running") {
             match.executed = event.data.executed || match.executed === true
             if (event.data.native) match.native = { ...match.native, ...event.data.native }
@@ -361,8 +386,7 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
         })
       },
       "session.tool.failed": (event) => {
-        return updateOwnedAssistant(event.data.assistantMessageID, (draft) => {
-          const match = latestTool(draft, event.data.id)
+        return updateOwnedTool(event.data.assistantMessageID, event.data.id, (match) => {
           if (match && (match.state.status === "streaming" || match.state.status === "running")) {
             match.executed = event.data.executed || match.executed === true
             if (event.data.native) match.native = { ...match.native, ...event.data.native }

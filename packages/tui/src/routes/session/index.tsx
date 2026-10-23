@@ -1976,7 +1976,7 @@ function SessionPartView(props: {
   const message = createMemo(() => props.message(props.partRef.messageID))
   const part = createMemo(() => {
     const item = message()
-    if (item?.type !== "assistant") return
+    if (item?.type !== "assistant" && item?.type !== "tool") return
     return resolvePart(item, props.partRef.partID)
   })
   return (

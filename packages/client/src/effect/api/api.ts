@@ -449,6 +449,7 @@ export type SessionLogOutput =
             readonly slug: string
             readonly title?: string | undefined
             readonly agent?: Agent.ID | undefined
+            readonly driver?: "external" | undefined
             readonly model?: Model.Ref | undefined
             readonly metadata?: Session.Metadata | undefined
             readonly permissions?: Permission.Ruleset | undefined
@@ -940,6 +941,23 @@ export type SessionLogOutput =
           readonly id: Event.ID
           readonly created: number
           readonly metadata?: { readonly [x: string]: unknown } | undefined
+          readonly type: "session.tool.started"
+          readonly durable: { readonly aggregateID: string; readonly seq: Event.Seq; readonly version: Event.Version }
+          readonly location?:
+            | { readonly directory: AbsolutePath; readonly workspaceID?: Workspace.ID | undefined }
+            | undefined
+          readonly data: {
+            readonly sessionID: Session.ID
+            readonly assistantMessageID: SessionMessage.ID
+            readonly id: string
+            readonly name: string
+            readonly input: { readonly [x: string]: unknown }
+          }
+        }
+      | {
+          readonly id: Event.ID
+          readonly created: number
+          readonly metadata?: { readonly [x: string]: unknown } | undefined
           readonly type: "session.tool.input.started"
           readonly durable: { readonly aggregateID: string; readonly seq: Event.Seq; readonly version: Event.Version }
           readonly location?:
@@ -1382,6 +1400,7 @@ export type MessageListInput = {
     | "system"
     | "skill"
     | "shell"
+    | "tool"
     | "assistant"
     | "compaction"
     | "idle"

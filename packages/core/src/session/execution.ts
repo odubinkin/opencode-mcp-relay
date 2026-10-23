@@ -89,6 +89,7 @@ export const layer = Layer.effect(
     ): Effect.fn.Return<void, SessionRunner.RunError> {
       const session = yield* store.get(sessionID)
       if (!session) return yield* Effect.die(new Error(`Session not found: ${sessionID}`))
+      if (session.driver === "external") return
       const result = yield* SessionRunner.Service.use((runner) =>
         runner.drain({ sessionID, force, continuation, promotable }),
       ).pipe(
@@ -165,8 +166,18 @@ export const layer = Layer.effect(
             yield* coordinator.wake(sessionID, "steer")
           return interrupted
         }),
-      resume: coordinator.run,
-      wake: coordinator.wake,
+      resume: (sessionID) =>
+        store
+          .get(sessionID)
+          .pipe(
+            Effect.flatMap((session) => (session?.driver === "external" ? Effect.void : coordinator.run(sessionID))),
+          ),
+      wake: (sessionID) =>
+        store
+          .get(sessionID)
+          .pipe(
+            Effect.flatMap((session) => (session?.driver === "external" ? Effect.void : coordinator.wake(sessionID))),
+          ),
       awaitIdle: coordinator.awaitIdle,
     })
   }),

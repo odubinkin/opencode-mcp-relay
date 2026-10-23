@@ -1341,6 +1341,22 @@ export type SessionReasoningEnded = {
   }
 }
 
+export type SessionToolStarted = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.tool.started"
+  durable: { aggregateID: string; seq: EventSeq; version: 1 }
+  location?: LocationRef
+  data: {
+    sessionID: SessionID
+    assistantMessageID: SessionMessageID
+    id: string
+    name: string
+    input: { [x: string]: any }
+  }
+}
+
 export type SessionToolInputStarted = {
   id: EventID
   created: number
@@ -2133,6 +2149,7 @@ export type SessionInfo = {
   fork?: { sessionID: SessionID; boundary: SessionForkBoundary }
   projectID: ProjectID
   agent?: AgentID
+  driver?: "external"
   model?: ModelRef
   cost: MoneyUSD
   tokens: TokenUsageInfo
@@ -2162,6 +2179,7 @@ export type SessionCreated = {
     slug: string
     title?: string
     agent?: AgentID
+    driver?: "external"
     model?: ModelRef
     metadata?: SessionMetadata
     permissions?: PermissionRuleset
@@ -2423,6 +2441,14 @@ export type SessionsResponse = {
 
 export type SessionInboxInfo = SessionInboxUser | SessionInboxSynthetic | SessionInboxCompaction | SessionInboxMove
 
+export type SessionMessageTool = {
+  id: SessionMessageID
+  metadata?: { [x: string]: JsonValue }
+  time: { created: number }
+  type: "tool"
+  tool: SessionMessageAssistantTool
+}
+
 export type SessionMessageAssistant = {
   id: SessionMessageID
   metadata?: { [x: string]: JsonValue }
@@ -2484,6 +2510,7 @@ export type SessionMessageInfo =
   | SessionMessageSystem
   | SessionMessageSkill
   | SessionMessageShell
+  | SessionMessageTool
   | SessionMessageAssistant
   | SessionMessageCompaction
   | SessionMessageIdle
@@ -2555,6 +2582,7 @@ export type SessionEventDurable =
   | SessionTextEnded
   | SessionReasoningStarted
   | SessionReasoningEnded
+  | SessionToolStarted
   | SessionToolInputStarted
   | SessionToolInputEnded
   | SessionToolCalled
@@ -2623,6 +2651,7 @@ export type V2Event =
   | SessionReasoningStarted
   | SessionReasoningDelta
   | SessionReasoningEnded
+  | SessionToolStarted
   | SessionToolInputStarted
   | SessionToolInputDelta
   | SessionToolInputEnded
@@ -3255,6 +3284,7 @@ export type SessionImportInput = {
       }
       readonly projectID: string
       readonly agent?: string
+      readonly driver?: "external"
       readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
       readonly cost: number
       readonly tokens: {
@@ -3308,6 +3338,7 @@ export type SessionImportInput = {
       }
       readonly projectID: string
       readonly agent?: string
+      readonly driver?: "external"
       readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
       readonly cost: number
       readonly tokens: {
@@ -3361,6 +3392,7 @@ export type SessionImportInput = {
       }
       readonly projectID: string
       readonly agent?: string
+      readonly driver?: "external"
       readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
       readonly cost: number
       readonly tokens: {
@@ -4891,6 +4923,7 @@ export type MessageListInput = {
       | "system"
       | "skill"
       | "shell"
+      | "tool"
       | "assistant"
       | "compaction"
       | "idle"
@@ -4909,6 +4942,7 @@ export type MessageListInput = {
       | "system"
       | "skill"
       | "shell"
+      | "tool"
       | "assistant"
       | "compaction"
       | "idle"
@@ -4927,6 +4961,7 @@ export type MessageListInput = {
       | "system"
       | "skill"
       | "shell"
+      | "tool"
       | "assistant"
       | "compaction"
       | "idle"
@@ -4945,6 +4980,7 @@ export type MessageListInput = {
       | "system"
       | "skill"
       | "shell"
+      | "tool"
       | "assistant"
       | "compaction"
       | "idle"

@@ -18,6 +18,7 @@ import {
   SessionFileToolGroup,
   SessionReadToolGroup,
   SessionShellMessage,
+  SessionToolContent,
   SessionUserMessage,
   currentContentDefaultOpen,
 } from "../message/current-message"
@@ -540,6 +541,11 @@ export function createSessionTimelineRowRenderer(input: {
       return value ? notice(value) : undefined
     })
 
+    const tool = createMemo(() => {
+      const value = message()
+      return value?.type === "tool" ? value.tool : undefined
+    })
+
     const childID = createMemo(() => {
       const value = message()
 
@@ -581,6 +587,19 @@ export function createSessionTimelineRowRenderer(input: {
 
     return (
       <>
+        <Show when={tool()}>
+          {(tool) => (
+            <div class={`w-full pt-2 ${inset()}`}>
+              <SessionToolContent
+                tool={tool()}
+                contentID={tool().id}
+                defaultOpen={contentDefaultOpen(tool())}
+                open={input.disclosure.value(`tool:${props.messageID}`)}
+                onOpenChange={(open) => input.disclosure.set(`tool:${props.messageID}`, open)}
+              />
+            </div>
+          )}
+        </Show>
         <Show when={compaction()}>
           {(message) => (
             <div data-slot="session-turn-message-container" class={`w-full ${inset()}`}>

@@ -49,7 +49,10 @@ export interface Loaded {
  */
 export interface Interface {
   /** Selects the Session, agent, instructions, and tools used by subsequent work. */
-  readonly select: (sessionID: SessionSchema.ID) => Effect.Effect<Selection, AgentNotFoundError>
+  readonly select: (
+    sessionID: SessionSchema.ID,
+    surface?: "model" | "direct",
+  ) => Effect.Effect<Selection, AgentNotFoundError>
   /** Resolves the model and active history for that selection. */
   readonly load: (selection: Selection) => Effect.Effect<Loaded, SessionRunnerModel.Error>
   readonly resolveModel: (
@@ -123,7 +126,10 @@ const layer = Layer.effect(
       return { agent, primary, selected }
     })
 
-    const select = Effect.fn("SessionContext.select")(function* (sessionID: SessionSchema.ID) {
+    const select = Effect.fn("SessionContext.select")(function* (
+      sessionID: SessionSchema.ID,
+      surface?: "model" | "direct",
+    ) {
       const session = yield* store.get(sessionID)
       if (!session) return yield* Effect.die(new Error(`Session not found: ${sessionID}`))
       if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
@@ -133,10 +139,14 @@ const layer = Layer.effect(
       const agent = yield* agents.select(session.agent)
       if (!agent.info) return yield* new AgentNotFoundError({ sessionID: session.id, agent: session.agent ?? agent.id })
       // Session permissions narrow discovery the same way they narrow the tool snapshot.
-      const permissions = Permission.merge(agent.info.permissions, session.permissions ?? [])
+      const permissions = Permission.merge(
+        agent.info.permissions,
+        session.permissions ?? [],
+        session.driver === "external" ? [{ action: "subagent", resource: "*", effect: "deny" }] : [],
+      )
       const loaded = yield* Effect.all(
         {
-          tools: registry.snapshot(permissions),
+          tools: registry.snapshot(permissions, surface),
           builtins: builtins.load(),
           discovery: discovery.load(),
           skills: skillInstructions.load(permissions),

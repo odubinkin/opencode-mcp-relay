@@ -2,6 +2,7 @@ import { Effect, Option, Redacted } from "effect"
 import { Commands } from "../../commands"
 import { Runtime } from "../../../framework/runtime"
 import { McpServer } from "../../../mcp/server"
+import { McpHost } from "../../../mcp/host"
 import { Env } from "../../../env"
 import { Global } from "@opencode/util/global"
 import path from "node:path"
@@ -11,9 +12,10 @@ export default Runtime.handler(
   Effect.fn("cli.mcp.serve")(function* (input) {
     const directory = Option.getOrUndefined(input.directory)
     if (directory) process.chdir(directory)
-    if (input.transport === "stdio") return yield* Effect.promise(() => McpServer.serve(process.cwd()))
     const config = yield* Env.mcpOAuth
     const global = yield* Global.Service
+    const runtime = yield* McpHost.make(process.cwd(), path.join(global.state, "mcp-runtime"))
+    if (input.transport === "stdio") return yield* McpServer.stdio(runtime)
     const configured = Boolean(
       config.issuer || config.clientID || config.clientSecret || config.password || config.redirectURIs,
     )
@@ -24,7 +26,7 @@ export default Runtime.handler(
       return yield* Effect.fail(new Error("Set all OPENCODE_MCP_OAUTH_* variables to enable MCP OAuth"))
     const server = yield* Effect.acquireRelease(
       Effect.sync(() =>
-        McpServer.listen(process.cwd(), {
+        McpServer.listen(runtime, {
           hostname: input.hostname,
           port: input.port,
           oauth:

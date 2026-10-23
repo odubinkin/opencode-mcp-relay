@@ -101,6 +101,7 @@ const layer = Layer.effect(
               ),
               title: input.data.info.title,
               agent: input.data.info.agent,
+              driver: input.data.info.driver,
               model: input.data.info.model,
               metadata: input.data.info.metadata,
               permissions: input.data.info.permissions,
@@ -164,6 +165,7 @@ export const node = makeGlobalNode({
 
 function isSettled(message: SessionMessage.Info) {
   if (message.type === "assistant") return message.time.completed !== undefined
+  if (message.type === "tool") return message.tool.state.status === "completed" || message.tool.state.status === "error"
   if (message.type === "shell" || message.type === "compaction") return message.status !== "running"
   return true
 }
@@ -259,6 +261,16 @@ function sanitizeMessage(message: SessionMessage.Info): SessionMessage.Info {
       output: message.output
         ? { ...message.output, output: redact("shell-output", message.id, message.output.output) }
         : undefined,
+    }
+  if (message.type === "tool")
+    return {
+      ...message,
+      metadata: meta,
+      tool: {
+        ...message.tool,
+        native: message.tool.native ? { redacted: `tool-native:${message.id}` } : undefined,
+        state: sanitizeToolState(message.id, message.tool.state),
+      },
     }
   if (message.type === "assistant")
     return {
