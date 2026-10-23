@@ -13,12 +13,15 @@ bun dev
 
 Run the `build` script to build the app's JS assets, then `package` to
 bundle the assets as an application. The resulting app will be in `dist/`.
+Preparation builds the CLI from this checkout and embeds it in the desktop app,
+including MCP Relay. It does not download an official CLI from npm.
 
 ```bash
 bun run build && bun run package
 ```
 
-Production builds require a prebuilt V2 CLI distribution. The release workflow supplies the artifact from the same run:
+To reuse a CLI that has already been built, set `OPENCODE_CLI_DIST`. This works in every channel;
+the release workflow supplies the artifact from the same run:
 
 ```bash
 OPENCODE_CHANNEL=prod OPENCODE_CLI_DIST=/absolute/path/to/packages/cli/dist bun run build
@@ -30,11 +33,19 @@ application's resources directory, and packaging fails if it is missing.
 
 CLI preparation uses these channel rules:
 
-| Channel                                | Without `OPENCODE_CLI_DIST`    | With `OPENCODE_CLI_DIST`                      |
-| -------------------------------------- | ------------------------------ | --------------------------------------------- |
-| `dev`, `local`, unset, or unrecognized | Download the dev CLI           | Download the dev CLI; ignore the distribution |
-| `beta`                                 | Download the beta CLI          | Copy the supplied CLI; fail if it is missing  |
-| `prod`, `latest`                       | Fail before changing resources | Copy the supplied CLI; fail if it is missing  |
+| Channel                                | Without `OPENCODE_CLI_DIST`       | With `OPENCODE_CLI_DIST`                     |
+| -------------------------------------- | --------------------------------- | -------------------------------------------- |
+| `dev`, `local`, unset, or unrecognized | Build this checkout's CLI as dev  | Copy the supplied CLI; fail if it is missing |
+| `beta`                                 | Build this checkout's CLI as beta | Copy the supplied CLI; fail if it is missing |
+| `prod`, `latest`                       | Build this checkout's CLI as prod | Copy the supplied CLI; fail if it is missing |
+
+The automatic CLI build targets the architecture selected by `OPENCODE_CLI_TARGET` (the host by default),
+includes the pairing web UI, and writes its distribution to `packages/desktop/.cache/cli`.
+It runs on every desktop build so source changes are not hidden by a stale CLI cache.
+The CLI build keeps its regular dependency installation step; source builds therefore still need package-registry
+access when native dependencies are missing. An invalid supplied distribution fails without falling back to npm.
+Production uses the CLI's `latest` channel and the version from this checkout's CLI package unless
+`OPENCODE_VERSION` is supplied; it does not derive a fork release version from npm.
 
 `bun dev` is separate from packaging: it uses local renderer/server mode, the dev app identity, and the CLI source by
 default. `bun dev --download-server <version>` instead downloads that CLI version for local development. Neither path
