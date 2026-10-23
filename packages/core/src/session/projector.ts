@@ -197,6 +197,7 @@ const projectFork = Effect.fn("SessionProjector.projectFork")(function* (
           // Terminal events for active projections stay on the parent, so forks copy only settled history.
           sql`${SessionMessageTable.type} != 'assistant' or json_extract(${SessionMessageTable.data}, '$.time.completed') is not null`,
           sql`${SessionMessageTable.type} != 'shell' or json_extract(${SessionMessageTable.data}, '$.status') != 'running'`,
+          sql`${SessionMessageTable.type} != 'tool' or json_extract(${SessionMessageTable.data}, '$.tool.state.status') in ('completed', 'error')`,
           sql`${SessionMessageTable.type} != 'compaction' or json_extract(${SessionMessageTable.data}, '$.status') != 'running'`,
         ),
       )
@@ -250,12 +251,7 @@ function run(db: DatabaseService, event: MessageEvent) {
       return db
         .update(SessionMessageTable)
         .set({ type, time_created: DateTime.toEpochMillis(message.time.created), data })
-        .where(
-          and(
-            eq(SessionMessageTable.id, message.id),
-            eq(SessionMessageTable.session_id, event.data.sessionID),
-          ),
-        )
+        .where(and(eq(SessionMessageTable.id, message.id), eq(SessionMessageTable.session_id, event.data.sessionID)))
         .run()
         .pipe(Effect.orDie)
     }
@@ -328,23 +324,16 @@ function run(db: DatabaseService, event: MessageEvent) {
           return message.type === "assistant" && !message.time.completed ? message : undefined
         })
       },
-      getAssistant(messageID) {
+      getMessage(messageID) {
         return Effect.gen(function* () {
           const row = yield* db
             .select()
             .from(SessionMessageTable)
-            .where(
-              and(
-                eq(SessionMessageTable.id, messageID),
-                eq(SessionMessageTable.session_id, event.data.sessionID),
-                eq(SessionMessageTable.type, "assistant"),
-              ),
-            )
+            .where(and(eq(SessionMessageTable.id, messageID), eq(SessionMessageTable.session_id, event.data.sessionID)))
             .get()
             .pipe(Effect.orDie)
           if (!row) return
-          const message = SessionHistory.decodeMessageRowSync(row)
-          return message.type === "assistant" ? message : undefined
+          return SessionHistory.decodeMessageRowSync(row)
         })
       },
       getShell(shellID) {
@@ -389,7 +378,7 @@ function run(db: DatabaseService, event: MessageEvent) {
           return message.type === "compaction" ? message : undefined
         })
       },
-      updateAssistant: updateMessage,
+      updateMessage,
       updateShell: updateMessage,
       updateCompaction: updateMessage,
       appendMessage,
@@ -464,6 +453,7 @@ const layer = Layer.effectDiscard(
             path: event.data.subpath,
             title: event.data.title,
             agent: event.data.agent,
+            driver: event.data.driver,
             model: event.data.model,
             metadata: event.data.metadata,
             permission: event.data.permissions,
@@ -740,6 +730,9 @@ const layer = Layer.effectDiscard(
     )
     yield* bus.project(SessionEvent.Text.Started, (event) => run(db, event))
     yield* bus.project(SessionEvent.Text.Ended, (event) => run(db, event))
+    yield* bus.project(SessionEvent.Tool.Started, (event) =>
+      run(db, event).pipe(Effect.andThen(touch(db, event)), Effect.asVoid),
+    )
     yield* bus.project(SessionEvent.Tool.Input.Started, (event) => run(db, event))
     yield* bus.project(SessionEvent.Tool.Input.Ended, (event) => run(db, event))
     yield* bus.project(SessionEvent.Tool.Called, (event) => run(db, event))

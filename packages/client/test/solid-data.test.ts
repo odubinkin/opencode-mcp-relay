@@ -14,6 +14,68 @@ const session = (viewed: number): SessionInfo => ({
   location: { directory: "/project" },
 })
 
+test("projects standalone tools through the normal live progress and terminal events", () => {
+  const listeners = new Set<Parameters<CreateDataInput["event"]["listen"]>[0]>()
+  const setup = createRoot((dispose) => ({
+    data: createData({
+      api: () => OpenCode.make({ baseUrl: "http://opencode.local" }),
+      directory: "/project",
+      event: {
+        on: () => () => {},
+        listen(handler) {
+          listeners.add(handler)
+          return () => listeners.delete(handler)
+        },
+      },
+    }),
+    dispose,
+  }))
+  const emit = (event: OpenCodeEvent) => listeners.forEach((listener) => listener({ name: event.type, details: event }))
+  const owner = { sessionID: "ses_direct", assistantMessageID: "msg_direct", id: "call_direct" }
+  try {
+    emit({
+      id: "evt_started",
+      type: "session.tool.started",
+      created: 1,
+      durable: { aggregateID: owner.sessionID, seq: 1, version: 1 },
+      data: { ...owner, name: "shell", input: { command: "echo ready" } },
+    })
+    emit({
+      id: "evt_progress",
+      type: "session.tool.progress",
+      created: 2,
+      data: { ...owner, metadata: { output: "partial" } },
+    })
+    expect(setup.data.session.message.get(owner.sessionID, owner.assistantMessageID)).toMatchObject({
+      type: "tool",
+      tool: { name: "shell", state: { status: "running", metadata: { output: "partial" } } },
+    })
+    emit({
+      id: "evt_success",
+      type: "session.tool.success",
+      created: 3,
+      durable: { aggregateID: owner.sessionID, seq: 2, version: 2 },
+      data: { ...owner, content: [{ type: "text", text: "ready" }], metadata: { exit: 0 }, executed: false },
+    })
+    expect(setup.data.session.message.list(owner.sessionID)).toMatchObject([
+      {
+        type: "tool",
+        tool: {
+          time: { completed: 3 },
+          state: {
+            status: "completed",
+            input: { command: "echo ready" },
+            content: [{ text: "ready" }],
+            metadata: { exit: 0 },
+          },
+        },
+      },
+    ])
+  } finally {
+    setup.dispose()
+  }
+})
+
 test("uses the configured initial window and retains normal cursor page sizes", async () => {
   const requests: { limit: string | null; cursor: string | null }[] = []
   const api = OpenCode.make({
@@ -66,12 +128,19 @@ test("counts every subagent page in a root session's cost", async () => {
       const url = new URL((input instanceof Request ? input : new Request(input, init)).url)
       requests.push(`${url.pathname}?${url.searchParams}`)
 
-      if (url.pathname === "/api/session/ses_root") return Response.json({ data: { ...session(0), id: "ses_root", cost: 0.5 } })
+      if (url.pathname === "/api/session/ses_root")
+        return Response.json({ data: { ...session(0), id: "ses_root", cost: 0.5 } })
 
       if (url.searchParams.get("cursor") === "page_2")
-        return Response.json({ data: Array.from({ length: 50 }, (_, index) => child(200 + index)), cursor: { next: "page_3" } })
+        return Response.json({
+          data: Array.from({ length: 50 }, (_, index) => child(200 + index)),
+          cursor: { next: "page_3" },
+        })
 
-      return Response.json({ data: Array.from({ length: 200 }, (_, index) => child(index)), cursor: { next: "page_2" } })
+      return Response.json({
+        data: Array.from({ length: 200 }, (_, index) => child(index)),
+        cursor: { next: "page_2" },
+      })
     },
   })
   const setup = createRoot((dispose) => ({

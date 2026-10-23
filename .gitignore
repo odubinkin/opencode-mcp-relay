@@ -4,6 +4,8 @@ node_modules
 .sst
 .env
 .env.local
+oauth-tokens.json
+mcp-diagnostic.log
 .idea
 .vscode
 .codex
@@ -37,3 +39,4 @@ logs/
 *.bun-build
 tsconfig.tsbuildinfo
 /artifacts/
+packages/cli/dist-mcp-tui/

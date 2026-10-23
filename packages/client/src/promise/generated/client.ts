@@ -142,6 +142,16 @@ import type {
   IntegrationCommandStatusOutput,
   IntegrationCommandCancelInput,
   IntegrationCommandCancelOutput,
+  McpRelayStatusInput,
+  McpRelayStatusOutput,
+  McpRelayConfigureInput,
+  McpRelayConfigureOutput,
+  McpRelayStartInput,
+  McpRelayStartOutput,
+  McpRelayStopInput,
+  McpRelayStopOutput,
+  McpRelaySecretsInput,
+  McpRelaySecretsOutput,
   McpListInput,
   McpListOutput,
   McpAddInput,
@@ -1392,6 +1402,69 @@ export function make(options: ClientOptions) {
       },
     },
     mcp: {
+      relay: {
+        status: (input?: McpRelayStatusInput, requestOptions?: RequestOptions) =>
+          request<McpRelayStatusOutput>(
+            {
+              method: "GET",
+              path: `/api/mcp/relay`,
+              query: { location: input?.["location"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        configure: (input: McpRelayConfigureInput, requestOptions?: RequestOptions) =>
+          request<McpRelayConfigureOutput>(
+            {
+              method: "PUT",
+              path: `/api/mcp/relay`,
+              query: { location: input["location"] },
+              body: { settings: input["settings"], clientSecret: input["clientSecret"], password: input["password"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        start: (input?: McpRelayStartInput, requestOptions?: RequestOptions) =>
+          request<McpRelayStartOutput>(
+            {
+              method: "POST",
+              path: `/api/mcp/relay/start`,
+              query: { location: input?.["location"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        stop: (input?: McpRelayStopInput, requestOptions?: RequestOptions) =>
+          request<McpRelayStopOutput>(
+            {
+              method: "DELETE",
+              path: `/api/mcp/relay`,
+              query: { location: input?.["location"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        secrets: (input?: McpRelaySecretsInput, requestOptions?: RequestOptions) =>
+          request<McpRelaySecretsOutput>(
+            {
+              method: "GET",
+              path: `/api/mcp/relay/secrets`,
+              query: { location: input?.["location"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+      },
       list: (input?: McpListInput, requestOptions?: RequestOptions) =>
         request<McpListOutput>(
           {
@@ -2326,12 +2399,12 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
-      update: (input: ConfigUpdateInput, requestOptions?: RequestOptions) =>
+      update: (input?: ConfigUpdateInput, requestOptions?: RequestOptions) =>
         request<ConfigUpdateOutput>(
           {
             method: "PATCH",
             path: `/api/experimental/config`,
-            body: { shell: input["shell"] },
+            body: { shell: input?.["shell"], mcpRelay: input?.["mcpRelay"] },
             successStatus: 204,
             declaredStatuses: [400, 401, 404],
             empty: true,

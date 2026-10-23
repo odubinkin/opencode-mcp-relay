@@ -16,6 +16,8 @@ import { newSessionLocation } from "../config/new-session-location"
 import { createSessionRetention } from "./session-retention"
 import { createProgramStatus, type PendingSession } from "./program-status"
 import { anchorKey, type AnchorTarget } from "../routes/session/anchors"
+import { useToast } from "../ui/toast"
+import { errorMessage } from "../util/error"
 import {
   closeSessionTab,
   cycleSessionTab,
@@ -66,6 +68,7 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
     const paths = useTuiPaths()
     const renderer = useRenderer()
     const storage = useStorage()
+    const toast = useToast()
     const enabled = () => config.tabs.enabled
     const [focused, setFocused] = createSignal<boolean>()
     // Keyed reconcile keeps tab object identity across reorders, so strip rows move instead of
@@ -451,10 +454,28 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
           if (route.data.type === "home" && session) route.navigate({ type: "session", sessionID: session })
           return
         }
-        const index = state().tabs.findIndex((tab) => tab.sessionID === target)
-        const tab = state().tabs[index]
-        if (tab) setClosedTabs((entries) => recordClosedSessionTab(entries, tab, index))
-        remove(target, true)
+        const close = () => {
+          const index = state().tabs.findIndex((tab) => tab.sessionID === target)
+          const tab = state().tabs[index]
+          if (tab) setClosedTabs((entries) => recordClosedSessionTab(entries, tab, index))
+          remove(target, true)
+        }
+        const session = data.session.get(target)
+        if (session?.driver === "external") {
+          void client.api.mcp.relay
+            .status({ location: session.location })
+            .then(async (status) => {
+              if (status.running && status.sessionID === session.id) {
+                await client.api.mcp.relay.stop({ location: session.location })
+              }
+            })
+            .then(close)
+            .catch((error) => {
+              toast.show({ title: "MCP Relay", message: errorMessage(error), variant: "error" })
+            })
+          return
+        }
+        close()
       },
       reopen(sessionID?: string) {
         if (!enabled()) return

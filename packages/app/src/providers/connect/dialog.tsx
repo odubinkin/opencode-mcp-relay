@@ -60,6 +60,7 @@ import { Menu } from "@opencode/ui/menu"
 import "./models.css"
 
 const CUSTOM_ID = "_custom"
+const RELAY_ID = "_mcp-relay"
 
 type IntegrationForm = NonNullable<ProviderConnectMethod["form"]>[number]
 
@@ -117,6 +118,14 @@ export const DialogConnectProvider: Component<{
   const holdFocus = () => focusHost?.focus({ preventScroll: true })
 
   const select = (provider?: string) => {
+    if (provider === RELAY_ID) {
+      dialog.close()
+      void (async () => {
+        const { DialogMcpRelay } = await import("./relay-dialog")
+        void dialog.show(() => <DialogMcpRelay directory={props.directory} />)
+      })()
+      return
+    }
     back.current = reset
     setState("picked", true)
     controller.select(provider)
@@ -244,7 +253,7 @@ function ProviderPicker(props: { directory?: string; onSelect: (provider: string
     language.locale()
     const query = store.filter.trim().toLowerCase()
 
-    const values = [custom(), ...integrations.list()]
+    const values = [custom(), { id: RELAY_ID, name: language.t("relay.title") }, ...integrations.list()]
 
     if (!query) return values
 

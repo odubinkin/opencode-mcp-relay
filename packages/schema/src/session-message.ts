@@ -175,6 +175,14 @@ export const AssistantTool = Schema.Struct({
   }),
 }).annotate({ identifier: "Session.Message.Assistant.Tool" })
 
+/** A direct tool invocation, without an internal model request or usage accounting. */
+export interface Tool extends Schema.Schema.Type<typeof Tool> {}
+export const Tool = Schema.Struct({
+  ...Base,
+  type: Schema.tag("tool"),
+  tool: AssistantTool,
+}).annotate({ identifier: "Session.Message.Tool" })
+
 export interface AssistantText extends Schema.Schema.Type<typeof AssistantText> {}
 export const AssistantText = Schema.Struct({
   type: Schema.tag("text"),
@@ -303,6 +311,7 @@ export const Info = Schema.Union([
   System,
   Skill,
   Shell,
+  Tool,
   Assistant,
   Compaction,
   Idle,
@@ -316,6 +325,7 @@ export type Info =
   | System
   | Skill
   | Shell
+  | Tool
   | Assistant
   | Compaction
   | Idle

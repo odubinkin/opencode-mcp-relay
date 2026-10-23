@@ -1,5 +1,32 @@
 import { expect, story } from "../../storybook/playwright/story"
 
+story(
+  "shows separate expanded relay actions and preserves a manual collapse on completion",
+  async ({ mount, page }) => {
+    const timeline = await mount("current-session-relay--actions")
+    const action = timeline
+      .locator(".tool-collapsible")
+      .filter({ hasText: "Check the project before making changes" })
+      .first()
+    const trigger = action.locator('[data-slot="collapsible-trigger"]').first()
+    await expect(trigger).toHaveAttribute("aria-expanded", "true")
+    await expect(action.getByText("git status --short", { exact: true })).toBeVisible()
+    await expect(timeline.getByRole("button", { name: "shell · echo legacy", exact: true })).toBeVisible()
+    await expect(timeline.getByText("Legacy command output", { exact: true })).toBeVisible()
+    const updates = timeline.locator('[data-slot="collapsible-trigger"]').filter({ hasText: "Updates" })
+    await expect(updates).toHaveCount(1)
+    await expect(updates).toHaveAttribute("aria-expanded", "false")
+    await page.setViewportSize({ width: 480, height: 720 })
+    await expect(trigger).toBeVisible()
+    await trigger.click()
+    await expect(trigger).toHaveAttribute("aria-expanded", "false")
+    await timeline.getByRole("button", { name: "Complete command" }).click()
+    await expect(trigger).toHaveAttribute("aria-expanded", "false")
+    await trigger.click()
+    await expect(action.getByText("Working tree is clean", { exact: true })).toBeVisible()
+  },
+)
+
 // Moved from packages/app/e2e/regression/session-timeline-notices.spec.ts
 story("renders the moved location notice as a timeline divider", async ({ mount, page }) => {
   const directory = `/Users/usrnk1/Developer/opencode/${"nested-directory/".repeat(24)}session`

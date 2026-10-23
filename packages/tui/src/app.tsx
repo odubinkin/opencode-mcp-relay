@@ -60,6 +60,7 @@ import { MigrationOverlay } from "./component/migration-overlay"
 import { DataProvider, useData } from "./context/data"
 import { SessionTabsProvider, useSessionTabs } from "./context/session-tabs"
 import { LocationProvider, useLocation } from "./context/location"
+import { DialogMcpRelay } from "./component/dialog-mcp-relay"
 import { LocalProvider, useLocal } from "./context/local"
 import { PermissionProvider } from "./context/permission"
 import { DialogModel } from "./component/dialog-model"
@@ -147,6 +148,7 @@ const pinnedSessionBindingCommands = [
 ] as const
 
 const appBindingCommands = [
+  "mcp.relay.mode",
   "command.palette.show",
   "model.list",
   "model.cycle_recent",
@@ -1015,6 +1017,13 @@ function App() {
           ))
         },
         category: "Integration",
+      },
+      {
+        name: "mcp.relay.mode",
+        title: "MCP Relay Mode",
+        slash: { name: "mcprelaymode", aliases: ["relay"] },
+        category: "Integration",
+        run: () => dialog.replace(() => <DialogMcpRelay start />),
       },
       ...(app.highlights?.length
         ? [

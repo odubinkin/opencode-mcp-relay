@@ -204,6 +204,7 @@ export function normalize(input: unknown): Result {
   if (model) encoded.model = { ...model, providerID: ConfigMigrateV1.providerID(model.providerID) }
 
   const nativeAtomic = {
+    mcpRelay: Info.fields.mcpRelay,
     $schema: Info.fields.$schema,
     shell: Info.fields.shell,
     default_agent: Info.fields.default_agent,

@@ -30,6 +30,22 @@ const messages: SessionMessageInfo[] = [
   { id: "msg_system", type: "system", text: "Updated instructions", time: { created: 800 } },
   { id: "msg_a", type: "user", text: "Fourth request", time: { created: 500 } },
   { id: "msg_idle", type: "idle", outcome: "succeeded", time: { created: 900 } },
+  {
+    id: "msg_tool",
+    type: "tool",
+    time: { created: 1000 },
+    tool: {
+      type: "tool",
+      id: "call_read",
+      name: "read",
+      time: { created: 1000, completed: 1100 },
+      state: {
+        status: "completed",
+        input: { path: "README.md" },
+        content: [{ type: "text", text: "Native tool result" }],
+      },
+    },
+  },
 ]
 
 const setup = Effect.gen(function* () {
@@ -85,6 +101,9 @@ it.live("filters message types before paginating in either direction through the
         messages[8],
       ])
       expect((await fixture.api.message.list({ sessionID: fixture.sessionID, type: "shell" })).data).toEqual([])
+      expect((await fixture.api.message.list({ sessionID: fixture.sessionID, type: "tool" })).data).toEqual([
+        messages[9],
+      ])
     })
   }),
 )
@@ -93,7 +112,7 @@ it.live("rejects unknown message type filters at the HTTP boundary", () =>
   Effect.gen(function* () {
     const fixture = yield* setup
     yield* Effect.promise(async () => {
-      for (const type of ["unknown", "tool", "User", ""]) {
+      for (const type of ["unknown", "tools", "User", ""]) {
         const response = await fixture.handler(
           new Request(`http://opencode.local/api/session/${fixture.sessionID}/message?type=${type}`),
         )

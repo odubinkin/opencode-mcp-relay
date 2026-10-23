@@ -1162,13 +1162,14 @@ export function Prompt(props: PromptProps) {
     }
     const agent = local.agent.current()
     if (!agent) return false
+    const external = props.sessionID ? data.session.get(props.sessionID)?.driver === "external" : false
     const selection = local.model.selection()
-    if (!selection) {
+    if (!selection && !external) {
       void promptModelWarning()
       return false
     }
-    const usesModel = !props.sessionID || store.mode !== "shell"
-    if (usesModel && !local.model.available(selection)) {
+    const usesModel = !external && (!props.sessionID || store.mode !== "shell")
+    if (usesModel && selection && !local.model.available(selection)) {
       toast.show({
         title: "Model unavailable",
         message: `${selection.providerID}/${selection.modelID} is not available in this session's location`,
@@ -1211,13 +1212,14 @@ export function Prompt(props: PromptProps) {
       )
     }
 
-    const variant = selection.variant
+    const variant = selection?.variant
     let sessionID = props.sessionID
     let session = sessionID ? data.session.get(sessionID) : undefined
     let finishMoveProgress = false
     // New-session sends wait for creation and environment setup.
     let newSession: { gate: Promise<unknown>; recover: (error: unknown) => void } | undefined
     if (sessionID == null) {
+      if (!selection) return false
       const directory = await move.getDirectory()
       if (move.pending() && !directory) {
         restoreEntry()
@@ -1278,6 +1280,7 @@ export function Prompt(props: PromptProps) {
 
     const target = sessionID
     const prepareAgent = async () => {
+      if (external) return
       if (!session) {
         await data.session.sync(target)
         session = data.session.get(target)
@@ -1287,6 +1290,7 @@ export function Prompt(props: PromptProps) {
       }
     }
     const commitModel = () => {
+      if (external || !selection) return Promise.resolve()
       const model = { providerID: selection.providerID, id: selection.modelID, variant }
       const cancelCommit = local.model.trackSessionCommit(target, model, agent.id)
       return client.api.session.switchModel({ sessionID: target, model }).catch((error) => {
@@ -1546,6 +1550,14 @@ export function Prompt(props: PromptProps) {
       const location = currentLocation.ref ?? data.location.default()
       const sessionLocation = props.sessionID ? data.session.get(props.sessionID)?.location : location
       if (!sessionLocation || locationKey(sessionLocation) !== locationKey(location)) return previous
+      if (props.sessionID && data.session.get(props.sessionID)?.driver === "external")
+        return {
+          agentLabel: "MCP Relay",
+          agentColor: undefined,
+          modelLabel: "External model",
+          providerLabel: "",
+          variant: undefined,
+        }
 
       const loading = data.location.agent.list(location) === undefined || !local.model.catalogReady
       const error = currentLocation.error

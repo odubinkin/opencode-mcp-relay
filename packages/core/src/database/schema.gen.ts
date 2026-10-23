@@ -208,6 +208,7 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
           \`revert\` text,
           \`permission\` text,
           \`agent\` text,
+          \`driver\` text,
           \`model\` text,
           \`time_created\` integer NOT NULL,
           \`time_updated\` integer NOT NULL,

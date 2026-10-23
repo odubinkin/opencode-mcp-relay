@@ -241,6 +241,7 @@ function toLLMMessage(message: SessionMessage.Info, model: Model.Ref, providerMe
   switch (message.type) {
     case "agent-switched":
     case "idle":
+    case "tool":
       return []
     case "model-switched":
       return modelSwitched(message, model)

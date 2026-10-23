@@ -82,24 +82,45 @@ export function SessionAssistantContent(props: {
       </Match>
       <Match when={props.content.type === "tool" ? props.content : undefined}>
         {(tool) => (
-          <ToolDisplay
-            id={props.contentID}
-            tool={tool().name}
-            input={currentToolInput(tool())}
-            metadata={currentToolMetadata(tool())}
-            output={currentToolOutput(tool())}
-            status={tool().state.status}
-            error={currentToolError(tool())}
+          <SessionToolContent
+            tool={tool()}
+            contentID={props.contentID}
             defaultOpen={props.defaultOpen}
             open={props.toolOpen}
             onOpenChange={props.onToolOpenChange}
-            deferContent
-            virtualizeDiff={false}
             onContentRendered={props.onContentRendered}
           />
         )}
       </Match>
     </Switch>
+  )
+}
+
+/** The same tool card for model-owned and standalone invocations. */
+export function SessionToolContent(props: {
+  tool: SessionMessageAssistantTool
+  contentID: string
+  defaultOpen?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  onContentRendered?: () => void
+}) {
+  return (
+    <ToolDisplay
+      id={props.contentID}
+      tool={props.tool.name}
+      input={currentToolInput(props.tool)}
+      metadata={currentToolMetadata(props.tool)}
+      output={currentToolOutput(props.tool)}
+      status={props.tool.state.status}
+      error={currentToolError(props.tool)}
+      defaultOpen={props.defaultOpen}
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      deferContent
+      virtualizeDiff={false}
+      onContentRendered={props.onContentRendered}
+    />
   )
 }
 

@@ -224,6 +224,16 @@ export type IntegrationCommandAttemptStatus =
       time: { created: number | "Infinity" | "-Infinity" | "NaN"; expires: number | "Infinity" | "-Infinity" | "NaN" }
     }
 
+export type ConfigMcpRelay = {
+  issuer: string
+  hostname: string
+  port: number
+  clientID: string
+  redirectURIs: Array<string>
+}
+
+export type McpRelaySecrets = { clientSecret: string; password: string }
+
 export type McpStatusConnected = { status: "connected" }
 
 export type McpStatusPending = { status: "pending" }
@@ -716,6 +726,15 @@ export type IntegrationAttempt = {
 }
 
 export type IntegrationCommandAttempt = { attemptID: IntegrationAttemptID; time: { created: number; expires: number } }
+
+export type McpRelayStatus = {
+  running: boolean
+  settings?: ConfigMcpRelay
+  sessionID?: SessionID
+  directory?: AbsolutePath
+  url?: string
+  localURL?: string
+}
 
 export type McpServer = {
   name: string
@@ -1338,6 +1357,22 @@ export type SessionReasoningEnded = {
     ordinal: number
     text: string
     native?: SessionMessageNative1
+  }
+}
+
+export type SessionToolStarted = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.tool.started"
+  durable: { aggregateID: string; seq: EventSeq; version: 1 }
+  location?: LocationRef
+  data: {
+    sessionID: SessionID
+    assistantMessageID: SessionMessageID
+    id: string
+    name: string
+    input: { [x: string]: any }
   }
 }
 
@@ -2133,6 +2168,7 @@ export type SessionInfo = {
   fork?: { sessionID: SessionID; boundary: SessionForkBoundary }
   projectID: ProjectID
   agent?: AgentID
+  driver?: "external"
   model?: ModelRef
   cost: MoneyUSD
   tokens: TokenUsageInfo
@@ -2162,6 +2198,7 @@ export type SessionCreated = {
     slug: string
     title?: string
     agent?: AgentID
+    driver?: "external"
     model?: ModelRef
     metadata?: SessionMetadata
     permissions?: PermissionRuleset
@@ -2276,6 +2313,7 @@ export type ConfigEntry =
                 }
           }
         }
+        mcpRelay?: ConfigMcpRelay
         compaction?: { auto?: boolean; keep?: { tokens?: number }; buffer?: number }
         skills?: Array<string>
         commands?: {
@@ -2424,6 +2462,14 @@ export type SessionsResponse = {
 
 export type SessionInboxInfo = SessionInboxUser | SessionInboxSynthetic | SessionInboxCompaction | SessionInboxMove
 
+export type SessionMessageTool = {
+  id: SessionMessageID
+  metadata?: { [x: string]: JsonValue }
+  time: { created: number }
+  type: "tool"
+  tool: SessionMessageAssistantTool
+}
+
 export type SessionMessageAssistant = {
   id: SessionMessageID
   metadata?: { [x: string]: JsonValue }
@@ -2485,6 +2531,7 @@ export type SessionMessageInfo =
   | SessionMessageSystem
   | SessionMessageSkill
   | SessionMessageShell
+  | SessionMessageTool
   | SessionMessageAssistant
   | SessionMessageCompaction
   | SessionMessageIdle
@@ -2556,6 +2603,7 @@ export type SessionEventDurable =
   | SessionTextEnded
   | SessionReasoningStarted
   | SessionReasoningEnded
+  | SessionToolStarted
   | SessionToolInputStarted
   | SessionToolInputEnded
   | SessionToolCalled
@@ -2624,6 +2672,7 @@ export type V2Event =
   | SessionReasoningStarted
   | SessionReasoningDelta
   | SessionReasoningEnded
+  | SessionToolStarted
   | SessionToolInputStarted
   | SessionToolInputDelta
   | SessionToolInputEnded
@@ -3256,6 +3305,7 @@ export type SessionImportInput = {
       }
       readonly projectID: string
       readonly agent?: string
+      readonly driver?: "external"
       readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
       readonly cost: number
       readonly tokens: {
@@ -3309,6 +3359,7 @@ export type SessionImportInput = {
       }
       readonly projectID: string
       readonly agent?: string
+      readonly driver?: "external"
       readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
       readonly cost: number
       readonly tokens: {
@@ -3362,6 +3413,7 @@ export type SessionImportInput = {
       }
       readonly projectID: string
       readonly agent?: string
+      readonly driver?: "external"
       readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
       readonly cost: number
       readonly tokens: {
@@ -4892,6 +4944,7 @@ export type MessageListInput = {
       | "system"
       | "skill"
       | "shell"
+      | "tool"
       | "assistant"
       | "compaction"
       | "idle"
@@ -4910,6 +4963,7 @@ export type MessageListInput = {
       | "system"
       | "skill"
       | "shell"
+      | "tool"
       | "assistant"
       | "compaction"
       | "idle"
@@ -4928,6 +4982,7 @@ export type MessageListInput = {
       | "system"
       | "skill"
       | "shell"
+      | "tool"
       | "assistant"
       | "compaction"
       | "idle"
@@ -4946,6 +5001,7 @@ export type MessageListInput = {
       | "system"
       | "skill"
       | "shell"
+      | "tool"
       | "assistant"
       | "compaction"
       | "idle"
@@ -5163,6 +5219,69 @@ export type IntegrationCommandCancelInput = {
 }
 
 export type IntegrationCommandCancelOutput = void
+
+export type McpRelayStatusInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type McpRelayStatusOutput = McpRelayStatus
+
+export type McpRelayConfigureInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+  readonly settings: {
+    readonly settings: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+    }
+    readonly clientSecret?: string
+    readonly password?: string
+  }["settings"]
+  readonly clientSecret?: {
+    readonly settings: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+    }
+    readonly clientSecret?: string
+    readonly password?: string
+  }["clientSecret"]
+  readonly password?: {
+    readonly settings: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+    }
+    readonly clientSecret?: string
+    readonly password?: string
+  }["password"]
+}
+
+export type McpRelayConfigureOutput = McpRelayStatus
+
+export type McpRelayStartInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type McpRelayStartOutput = McpRelayStatus
+
+export type McpRelayStopInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type McpRelayStopOutput = McpRelayStatus
+
+export type McpRelaySecretsInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type McpRelaySecretsOutput = McpRelaySecrets
 
 export type McpListInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
@@ -6065,6 +6184,27 @@ export type ConfigGetOutput = Array<ConfigEntry>
 
 export type ConfigShellsOutput = Array<ConfigShellOption>
 
-export type ConfigUpdateInput = { readonly shell: { readonly shell: string | null }["shell"] }
+export type ConfigUpdateInput = {
+  readonly shell?: {
+    readonly shell?: string | null
+    readonly mcpRelay?: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+    } | null
+  }["shell"]
+  readonly mcpRelay?: {
+    readonly shell?: string | null
+    readonly mcpRelay?: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+    } | null
+  }["mcpRelay"]
+}
 
 export type ConfigUpdateOutput = void

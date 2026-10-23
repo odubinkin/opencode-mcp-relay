@@ -93,20 +93,20 @@ for (const orientation of ["horizontal", "vertical"] as const) {
                   <ClientProvider api={createApi(createFetch(undefined, createEventStream()).fetch)}>
                     <DataProvider directory={temporary.path}>
                       <LocationProvider>
-                        <SessionTabsProvider>
-                          <ThemeProvider mode="dark" source={emptyThemeSource}>
-                            <Colors />
-                            <Keymap.Provider>
-                              <ToastProvider>
+                        <ToastProvider>
+                          <SessionTabsProvider>
+                            <ThemeProvider mode="dark" source={emptyThemeSource}>
+                              <Colors />
+                              <Keymap.Provider>
                                 <DialogProvider>
                                   <box width="100%" height="100%">
                                     <SessionTabs controller={controller} orientation={orientation} animations={false} />
                                   </box>
                                 </DialogProvider>
-                              </ToastProvider>
-                            </Keymap.Provider>
-                          </ThemeProvider>
-                        </SessionTabsProvider>
+                              </Keymap.Provider>
+                            </ThemeProvider>
+                          </SessionTabsProvider>
+                        </ToastProvider>
                       </LocationProvider>
                     </DataProvider>
                   </ClientProvider>
@@ -248,7 +248,9 @@ for (const orientation of ["horizontal", "vertical"] as const) {
         ])
       }
       app.renderer.resize(60, 20)
-      setClosed(Array.from({ length: 11 }, (_, index) => ({ sessionID: `closed-${index}`, title: `History ${index + 1}` })))
+      setClosed(
+        Array.from({ length: 11 }, (_, index) => ({ sessionID: `closed-${index}`, title: `History ${index + 1}` })),
+      )
       await app.renderOnce()
       const historyRows = app.captureCharFrame().split("\n")
       const newRow = historyRows.findIndex((line) => line.includes("+ New session"))

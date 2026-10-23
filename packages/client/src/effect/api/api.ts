@@ -449,6 +449,7 @@ export type SessionLogOutput =
             readonly slug: string
             readonly title?: string | undefined
             readonly agent?: Agent.ID | undefined
+            readonly driver?: "external" | undefined
             readonly model?: Model.Ref | undefined
             readonly metadata?: Session.Metadata | undefined
             readonly permissions?: Permission.Ruleset | undefined
@@ -940,6 +941,23 @@ export type SessionLogOutput =
           readonly id: Event.ID
           readonly created: number
           readonly metadata?: { readonly [x: string]: unknown } | undefined
+          readonly type: "session.tool.started"
+          readonly durable: { readonly aggregateID: string; readonly seq: Event.Seq; readonly version: Event.Version }
+          readonly location?:
+            | { readonly directory: AbsolutePath; readonly workspaceID?: Workspace.ID | undefined }
+            | undefined
+          readonly data: {
+            readonly sessionID: Session.ID
+            readonly assistantMessageID: SessionMessage.ID
+            readonly id: string
+            readonly name: string
+            readonly input: { readonly [x: string]: unknown }
+          }
+        }
+      | {
+          readonly id: Event.ID
+          readonly created: number
+          readonly metadata?: { readonly [x: string]: unknown } | undefined
           readonly type: "session.tool.input.started"
           readonly durable: { readonly aggregateID: string; readonly seq: Event.Seq; readonly version: Event.Version }
           readonly location?:
@@ -1382,6 +1400,7 @@ export type MessageListInput = {
     | "system"
     | "skill"
     | "shell"
+    | "tool"
     | "assistant"
     | "compaction"
     | "idle"
@@ -1630,6 +1649,93 @@ export interface IntegrationApi<E = never> {
   }
 }
 
+export type McpRelayStatusInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
+export type McpRelayStatusOutput = {
+  readonly running: boolean
+  readonly settings?: {
+    readonly issuer: string
+    readonly hostname: string
+    readonly port: number
+    readonly clientID: string
+    readonly redirectURIs: ReadonlyArray<string>
+  }
+  readonly sessionID?: Session.ID
+  readonly directory?: AbsolutePath
+  readonly url?: string
+  readonly localURL?: string
+}
+export type McpRelayStatusOperation<E = never> = (input?: McpRelayStatusInput) => Effect.Effect<McpRelayStatusOutput, E>
+
+export type McpRelayConfigureInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly settings: {
+    readonly issuer: string
+    readonly hostname: string
+    readonly port: number
+    readonly clientID: string
+    readonly redirectURIs: ReadonlyArray<string>
+  }
+  readonly clientSecret?: string
+  readonly password?: string
+}
+export type McpRelayConfigureOutput = {
+  readonly running: boolean
+  readonly settings?: {
+    readonly issuer: string
+    readonly hostname: string
+    readonly port: number
+    readonly clientID: string
+    readonly redirectURIs: ReadonlyArray<string>
+  }
+  readonly sessionID?: Session.ID
+  readonly directory?: AbsolutePath
+  readonly url?: string
+  readonly localURL?: string
+}
+export type McpRelayConfigureOperation<E = never> = (
+  input: McpRelayConfigureInput,
+) => Effect.Effect<McpRelayConfigureOutput, E>
+
+export type McpRelayStartInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
+export type McpRelayStartOutput = {
+  readonly running: boolean
+  readonly settings?: {
+    readonly issuer: string
+    readonly hostname: string
+    readonly port: number
+    readonly clientID: string
+    readonly redirectURIs: ReadonlyArray<string>
+  }
+  readonly sessionID?: Session.ID
+  readonly directory?: AbsolutePath
+  readonly url?: string
+  readonly localURL?: string
+}
+export type McpRelayStartOperation<E = never> = (input?: McpRelayStartInput) => Effect.Effect<McpRelayStartOutput, E>
+
+export type McpRelayStopInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
+export type McpRelayStopOutput = {
+  readonly running: boolean
+  readonly settings?: {
+    readonly issuer: string
+    readonly hostname: string
+    readonly port: number
+    readonly clientID: string
+    readonly redirectURIs: ReadonlyArray<string>
+  }
+  readonly sessionID?: Session.ID
+  readonly directory?: AbsolutePath
+  readonly url?: string
+  readonly localURL?: string
+}
+export type McpRelayStopOperation<E = never> = (input?: McpRelayStopInput) => Effect.Effect<McpRelayStopOutput, E>
+
+export type McpRelaySecretsInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
+export type McpRelaySecretsOutput = { readonly clientSecret: string; readonly password: string }
+export type McpRelaySecretsOperation<E = never> = (
+  input?: McpRelaySecretsInput,
+) => Effect.Effect<McpRelaySecretsOutput, E>
+
 export type McpListInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
 export type McpListOutput = { readonly location: Location.PublicRef; readonly data: ReadonlyArray<Mcp.Server> }
 export type McpListOperation<E = never> = (input?: McpListInput) => Effect.Effect<McpListOutput, E>
@@ -1678,6 +1784,13 @@ export type McpClientTokenOutput = { readonly location: Location.PublicRef; read
 export type McpClientTokenOperation<E = never> = (input: McpClientTokenInput) => Effect.Effect<McpClientTokenOutput, E>
 
 export interface McpApi<E = never> {
+  readonly relay: {
+    readonly status: McpRelayStatusOperation<E>
+    readonly configure: McpRelayConfigureOperation<E>
+    readonly start: McpRelayStartOperation<E>
+    readonly stop: McpRelayStopOperation<E>
+    readonly secrets: McpRelaySecretsOperation<E>
+  }
   readonly list: McpListOperation<E>
   readonly add: McpAddOperation<E>
   readonly remove: McpRemoveOperation<E>
@@ -2347,9 +2460,18 @@ export type ConfigShellsOutput = ReadonlyArray<{
 }>
 export type ConfigShellsOperation<E = never> = () => Effect.Effect<ConfigShellsOutput, E>
 
-export type ConfigUpdateInput = { readonly shell: string | null }
+export type ConfigUpdateInput = {
+  readonly shell?: string | null
+  readonly mcpRelay?: {
+    readonly issuer: string
+    readonly hostname: string
+    readonly port: number
+    readonly clientID: string
+    readonly redirectURIs: ReadonlyArray<string>
+  } | null
+}
 export type ConfigUpdateOutput = void
-export type ConfigUpdateOperation<E = never> = (input: ConfigUpdateInput) => Effect.Effect<ConfigUpdateOutput, E>
+export type ConfigUpdateOperation<E = never> = (input?: ConfigUpdateInput) => Effect.Effect<ConfigUpdateOutput, E>
 
 export interface ConfigApi<E = never> {
   readonly get: ConfigGetOperation<E>

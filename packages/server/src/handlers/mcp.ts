@@ -12,6 +12,7 @@ import { Api } from "../api"
 import { CorsConfig, isAllowedRequestOrigin } from "../cors"
 import { locationErrors, requestRef, response } from "../location"
 import { type Outbound, runPtySocket } from "./pty-socket"
+import { McpRelay } from "../mcp/relay"
 
 const notFound = <A, R>(effect: Effect.Effect<A, Mcp.NotFoundError, R>) =>
   effect.pipe(Effect.mapError((error) => new McpServerNotFoundError({ server: error.server, message: error.message })))
@@ -23,6 +24,45 @@ export const McpHandler = HttpApiBuilder.group(Api, "server.mcp", (handlers) =>
     const tickets = yield* PtyTicket.Service
 
     return handlers
+      .handle(
+        "mcp.relay.status",
+        Effect.fn(function* () {
+          const relay = yield* McpRelay.Service
+          const location = yield* Location.Service
+          return yield* locationErrors(relay.status(location.directory))
+        }),
+      )
+      .handle(
+        "mcp.relay.configure",
+        Effect.fn(function* (ctx) {
+          const relay = yield* McpRelay.Service
+          const location = yield* Location.Service
+          return yield* locationErrors(relay.configure(location.directory, ctx.payload))
+        }),
+      )
+      .handle(
+        "mcp.relay.start",
+        Effect.fn(function* () {
+          const relay = yield* McpRelay.Service
+          const location = yield* Location.Service
+          return yield* relay.start(location.directory)
+        }),
+      )
+      .handle(
+        "mcp.relay.stop",
+        Effect.fn(function* () {
+          const relay = yield* McpRelay.Service
+          const location = yield* Location.Service
+          return yield* locationErrors(relay.stop(location.directory))
+        }),
+      )
+      .handle(
+        "mcp.relay.secrets",
+        Effect.fn(function* () {
+          const relay = yield* McpRelay.Service
+          return yield* relay.secrets
+        }),
+      )
       .handle(
         "mcp.list",
         Effect.fn(function* () {

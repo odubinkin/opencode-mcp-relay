@@ -38,6 +38,8 @@ export const Info = Schema.Struct({
   }).pipe(optional),
   projectID: Project.ID,
   agent: Agent.ID.pipe(optional),
+  /** External drivers execute tools without starting the built-in model runner. Not inherited by children. */
+  driver: Schema.Literal("external").pipe(optional),
   model: Model.Ref.pipe(optional),
   cost: Money.USD,
   tokens: TokenUsage.Info,

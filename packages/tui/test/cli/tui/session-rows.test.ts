@@ -6,10 +6,54 @@ import {
   cacheReuseDrop,
   messageBoundaryIDs,
   reduceSessionRows,
+  resolvePart,
   sessionRowID,
   turnDuration,
   turnTokensPerSecond,
 } from "../../../src/routes/session/rows"
+
+test("routes standalone calls to native tool parts without model footers", () => {
+  const messages: Extract<SessionMessageInfo, { type: "tool" }>[] = [
+    {
+      id: "msg_read",
+      type: "tool",
+      time: { created: 1 },
+      tool: {
+        type: "tool",
+        id: "call_read",
+        name: "read",
+        time: { created: 1 },
+        state: { status: "running", input: { path: "src/file.ts" }, metadata: {} },
+      },
+    },
+    {
+      id: "msg_shell",
+      type: "tool",
+      time: { created: 2 },
+      tool: {
+        type: "tool",
+        id: "call_shell",
+        name: "shell",
+        time: { created: 2, completed: 3 },
+        state: {
+          status: "completed",
+          input: { command: "bun test" },
+          content: [{ type: "text", text: "tests passed" }],
+        },
+      },
+    },
+  ]
+  expect(reduceSessionRows(messages, new Set(), true, "high")).toMatchObject([
+    {
+      type: "group",
+      kind: "exploration",
+      children: [{ entry: { type: "part", ref: { messageID: "msg_read", partID: "call_read" } } }],
+    },
+    { type: "part", ref: { messageID: "msg_shell", partID: "call_shell" } },
+  ])
+  expect(resolvePart(messages[0], "call_read")).toBe(messages[0].tool)
+  expect(resolvePart(messages[0], "wrong-call")).toBeUndefined()
+})
 
 test("measures turn duration from the user prompt across assistant steps", () => {
   const first = assistant("assistant-1", [])

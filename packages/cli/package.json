@@ -19,6 +19,7 @@
   "scripts": {
     "build": "bun run script/build.ts",
     "build:node": "bun run script/build-node.ts",
+    "build:mcp": "bun run script/build-mcp.ts",
     "dev": "bun run src/index.ts",
     "test": "bun test --timeout 30000 --only-failures",
     "typecheck": "bun check --no-script -b",
@@ -29,9 +30,10 @@
     "@clack/core": "1.0.0-alpha.1",
     "@clack/prompts": "1.0.0-alpha.1",
     "@effect/platform-node": "catalog:",
+    "@modelcontextprotocol/server": "2.0.0",
+    "@opencode-ai/pty": "0.3.1",
     "@opencode/client": "workspace:*",
     "@opencode/plugin": "workspace:*",
-    "@opencode-ai/pty": "0.3.1",
     "@opencode/schema": "workspace:*",
     "@opencode/server": "workspace:*",
     "@opencode/tui": "workspace:*",
@@ -54,6 +56,7 @@
     "ws": "8.21.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
     "@opencode/script": "workspace:*",
     "@opencode/protocol": "workspace:*",
     "@tsconfig/bun": "catalog:",

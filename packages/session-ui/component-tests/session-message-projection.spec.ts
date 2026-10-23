@@ -1,5 +1,16 @@
 import { expect, story } from "../../storybook/playwright/story"
 
+story("renders standalone MCP calls with native file, diff and shell components", async ({ mount }) => {
+  const timeline = await mount("current-session-timeline-rows--direct-tools")
+  await expect(timeline.getByText("README.md", { exact: true })).toBeVisible()
+  const file = timeline.locator('[data-slot="accordion-trigger"]').filter({ hasText: "config.ts" })
+  await expect(file).toBeVisible()
+  if ((await file.getAttribute("aria-expanded")) === "false") await file.click()
+  await expect(timeline.locator('[data-component="file"]')).toContainText("export const after = true")
+  await expect(timeline.locator('[data-slot="bash-command"]')).toHaveText("echo native-output")
+  await expect(timeline.locator('[data-slot="bash-result"]')).toHaveText("native-output-result")
+})
+
 // Moved from packages/app/e2e/regression/session-timeline-collapse-state.spec.ts
 story("keeps a manually collapsed tool collapsed when later assistant content streams", async ({ mount }) => {
   const timeline = await mount("current-session-file-changes--changing-files", { args: { scenario: "streaming" } })

@@ -1,4 +1,5 @@
 import { Database } from "@opencode/core/database/database"
+import { KV } from "@opencode/core/kv"
 import { V1Migration } from "@opencode/core/database/v1-migration"
 import { App } from "@opencode/core/app"
 import { LayerNode } from "@opencode/util/effect/layer-node"
@@ -48,11 +49,13 @@ import { formLocationLayer } from "./middleware/form-location"
 import { sessionLocationLayer } from "./middleware/session-location"
 import { ServerInfo } from "./server-info"
 import type { ServerOptions } from "./options"
+import { McpRelay } from "./mcp/relay"
 
 const applicationServiceNodes = [
   Global.node,
   FSUtil.node,
   Database.node,
+  KV.node,
   Bus.node,
   EventLogger.node,
   httpClient,
@@ -161,8 +164,10 @@ function makeRoutes<AuthError, AuthServices>(
     : build(overrides)
   return serviceLayer.pipe(
     Layer.flatMap((context) => {
-      const services = Layer.succeedContext(context)
-      const requestServices = Layer.merge(
+      const base = Layer.succeedContext(context)
+      const relay = McpRelay.layer.pipe(Layer.provide(base))
+      const services = Layer.merge(base, relay)
+      const requestServices = Layer.mergeAll(
         Layer.succeedContext(
           Context.pick(
             Database.Service,
@@ -173,6 +178,7 @@ function makeRoutes<AuthError, AuthServices>(
             WellKnown.Service,
           )(context),
         ),
+        relay,
         ServerInfo.layer(serviceURLs, Context.get(context, Global.Service).tmp, options.app),
       )
       const api = HttpApiBuilder.layer(Api, { openapiPath: "/openapi.json" }).pipe(

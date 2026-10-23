@@ -5,6 +5,7 @@ import type { SessionDocument } from "../document"
 import { SessionTimeline } from "./session-timeline"
 import type { ReasoningMode } from "./projection"
 import { CurrentSessionProviders, CurrentSessionTimelineStory } from "../storybook/current-session-story"
+import { storyPatchFile, storyTool } from "../storybook/current-session-scenarios"
 import {
   CURRENT_SESSION_ID,
   STORY_MODEL,
@@ -43,6 +44,46 @@ export default {
 
 export const AgentThinking = {
   render: () => <AgentReasoningStory mode="compact" reasoning="heading" tool={false} text="" />,
+}
+
+export const DirectTools = {
+  render: () => (
+    <CurrentSessionTimelineStory
+      title="Direct MCP tools"
+      description="Native tool cards without an internal model or assistant message."
+      shellToolDefaultOpen
+      editToolDefaultOpen
+      document={{
+        sessionID: CURRENT_SESSION_ID,
+        status: { type: "idle" },
+        diffs: [],
+        messages: [
+          storyTool("call_read", "read", "completed", { path: "README.md" }, { output: "Read documentation" }),
+          storyTool(
+            "call_edit",
+            "edit",
+            "completed",
+            { path: "src/config.ts" },
+            { metadata: { files: [storyPatchFile("src/config.ts")] } },
+          ),
+          storyTool(
+            "call_shell",
+            "shell",
+            "completed",
+            { command: "echo native-output" },
+            { output: "native-output-result", metadata: { exit: 0 } },
+          ),
+        ].map((tool, index) => ({
+          id: `msg_direct_${index}`,
+          type: "tool",
+          time: { created: STORY_TIME + index },
+          metadata: { source: "mcp" },
+          tool,
+        })),
+      }}
+      width="720px"
+    />
+  ),
 }
 
 export const StreamingReasoningAndText = {
@@ -207,7 +248,10 @@ function RetryAndRecoverStory() {
             ? {
                 attempt: 2,
                 at: 1_900_000_000_000,
-                error: { type: "ProviderRateLimitError" as const, message: "Rate limit reached. Retrying with backoff." },
+                error: {
+                  type: "ProviderRateLimitError" as const,
+                  message: "Rate limit reached. Retrying with backoff.",
+                },
               }
             : undefined,
           time: { created: STORY_TIME, completed: finished ? STORY_TIME + 300 : undefined },

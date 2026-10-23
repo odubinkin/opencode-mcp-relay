@@ -300,6 +300,13 @@ export function createSessionRows(sessionID: Accessor<string>, onSynced?: (sessi
           { type: "tool", name: event.data.name },
         )
     }),
+    data.on("session.tool.started", (event) => {
+      if (event.data.sessionID === sessionID())
+        appendPart(
+          { messageID: event.data.assistantMessageID, partID: event.data.id },
+          { type: "tool", name: event.data.name },
+        )
+    }),
     data.on("session.retry.scheduled", (event) => {
       if (event.data.sessionID === sessionID()) appendFooter(event.data.assistantMessageID)
     }),
@@ -375,6 +382,14 @@ export function reduceSessionRows(
     ...pendingCompactions,
     ...messages.filter(isInput),
   ].reduce<ProjectionEntry[]>((rows, message) => {
+    if (message.type === "tool") {
+      rows.push({
+        entry: { type: "part", ref: { messageID: message.id, partID: message.tool.id } },
+        part: message.tool,
+        path: partPath(message.tool, verbosity),
+      })
+      return rows
+    }
     if (message.type !== "assistant") {
       if (message.type === "idle") {
         flushTurn(rows)
@@ -525,10 +540,14 @@ function rowBoundaryMessageID(row: SessionRow, messages: Map<string, SessionMess
             : undefined
   if (!messageID) return undefined
   const message = messages.get(messageID)
-  if (message?.type === "assistant") return message.id
+  if (message?.type === "assistant" || message?.type === "tool") return message.id
 }
 
-export function resolvePart(message: SessionMessageAssistant, partID: string) {
+export function resolvePart(
+  message: SessionMessageAssistant | Extract<SessionMessageInfo, { type: "tool" }>,
+  partID: string,
+) {
+  if (message.type === "tool") return message.tool.id === partID ? message.tool : undefined
   const tool = message.content.find((part) => part.type === "tool" && part.id === partID)
   if (tool) return tool
   const match = /^(text|reasoning):(\d+)$/.exec(partID)

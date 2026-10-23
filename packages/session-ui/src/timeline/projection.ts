@@ -357,7 +357,9 @@ export namespace Timeline {
         ?.id ?? turns.at(-1)?.id
 
     const visibleNotice = (message: Notice) =>
-      !detail || detail.notices.placement !== "hidden" || timelineNoticeRequired(message)
+      message.type === "tool"
+        ? isRenderable(message.tool, showReasoning, detail)
+        : !detail || detail.notices.placement !== "hidden" || timelineNoticeRequired(message)
 
     const visibleTurns = detail
       ? turns.filter((turn) => {
@@ -443,7 +445,8 @@ export namespace Timeline {
               messages.flatMap((message) =>
                 message.type === "compaction" ||
                 message.type === "model-switched" ||
-                message.type === "location-switched"
+                message.type === "location-switched" ||
+                (message.type === "tool" && message.metadata?.source === "mcp")
                   ? [message.id]
                   : [],
               ),
@@ -607,7 +610,12 @@ export namespace Timeline {
 
           return
         case "notice":
-          if (detail?.notices.placement === "hidden" && !timelineNoticeRequired(entry.message)) return
+          if (
+            entry.message.type === "tool"
+              ? !isRenderable(entry.message.tool, showReasoning, detail)
+              : detail?.notices.placement === "hidden" && !timelineNoticeRequired(entry.message)
+          )
+            return
           appendAssistantSegment(assistantSegment)
           assistantSegment = []
           rows.push(new TimelineRow.Notice({ userMessageID: turnID, messageID: entry.message.id }))

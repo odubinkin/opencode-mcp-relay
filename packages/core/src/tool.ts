@@ -4,7 +4,7 @@ export type { Context, Metadata, Namespace, Options, Result } from "@opencode/sc
 
 import { ToolDefinition, type ToolCall } from "@opencode/ai"
 import { Tool } from "@opencode/schema/tool"
-import { Context, Effect, Layer, Result, Schema, SchemaIssue, Types } from "effect"
+import { Context, Effect, Layer, PubSub, Result, Schema, SchemaIssue, Stream, Types } from "effect"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import type { Agent } from "./agent.js"
 import { CodeModeCatalog } from "./codemode/catalog.js"
@@ -39,8 +39,9 @@ type Data = {
 }
 
 export interface Interface extends State.Transformable<Editor> {
+  readonly changes: Stream.Stream<void>
   readonly list: () => Effect.Effect<ReadonlyArray<Tool.Info & { readonly id: string }>>
-  readonly snapshot: (permissions?: Permission.Ruleset) => Effect.Effect<Snapshot>
+  readonly snapshot: (permissions?: Permission.Ruleset, surface?: "model" | "direct") => Effect.Effect<Snapshot>
 }
 
 /** A local execution result after hooks and content normalization. */
@@ -69,6 +70,7 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const hooks = yield* PluginHooks.Service
     const image = yield* Image.Service
+    const changes = yield* PubSub.unbounded<void>()
 
     type NormalizedItem = Tool.Content | "decode" | "size"
     const normalizeImages = Effect.fnUntraced(function* (content: ReadonlyArray<Tool.Content>) {
@@ -216,15 +218,16 @@ const layer = Layer.effect(
               error: error.message,
             }),
           { discard: true },
-        )
+        ).pipe(Effect.andThen(PubSub.publish(changes, undefined)), Effect.asVoid)
       },
     })
 
     return Service.of({
+      changes: Stream.fromPubSub(changes),
       transform: state.transform,
       reload: state.reload,
       list: () => Effect.sync(() => Array.from(state.get().tools.values())),
-      snapshot: Effect.fn("Tool.snapshot")((permissions) =>
+      snapshot: Effect.fn("Tool.snapshot")((permissions, surface = "model") =>
         Effect.sync(() => {
           const data = state.get()
           const active = new Map<string, Tool.Info>()
@@ -233,10 +236,14 @@ const layer = Layer.effect(
             if (whollyDisabled(tool.options?.permission ?? name, rules)) continue
             active.set(name, tool)
           }
-          const direct = new Map(Array.from(active).filter(([, tool]) => tool.options?.codemode === false))
-          const codeModeTools = new Map(Array.from(active).filter(([, tool]) => tool.options?.codemode !== false))
+          const direct = new Map(
+            Array.from(active).filter(([, tool]) => surface === "direct" || tool.options?.codemode === false),
+          )
+          const codeModeTools = new Map(
+            Array.from(active).filter(([, tool]) => surface !== "direct" && tool.options?.codemode !== false),
+          )
           const names = Array.from(codeModeTools.keys()).join("\0")
-          const codeModeEnabled = !whollyDisabled("execute", rules)
+          const codeModeEnabled = surface !== "direct" && !whollyDisabled("execute", rules)
           // Discovery is immutable for a registry revision and visible tool set. Keep request
           // definitions/executors fresh, but share the inventory, whose prepared runtime and much
           // larger rendered catalog are cached by identity, across steps.

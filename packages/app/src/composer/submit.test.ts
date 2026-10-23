@@ -171,6 +171,29 @@ function session(input: {
 }
 
 describe("Composer submission", () => {
+  test("admits Relay input without a model selection or agent/model switching", async () => {
+    const state = createMemoryComposerState().capture()
+    state.set([{ type: "text", content: "Inspect this repository", start: 0, end: 23 }])
+    const calls: string[] = []
+    const target = session({
+      calls,
+      current: () => ({ driver: "external", agent: "build" }),
+      prompt: async (value) => {
+        expect(value.text).toBe("Inspect this repository")
+        expect(value.prepare).toBeUndefined()
+        expect(value.metadata).not.toHaveProperty("model")
+      },
+    })
+    await submitInput(
+      active(state, target, () => ({
+        ...controls(),
+        model: { ...controls().model, selection: { ...selection, current: () => undefined } },
+      })),
+    ).submit(new Event("submit"))
+    expect(calls).toEqual(["admit", "send"])
+    expect(state.current()).toEqual([{ type: "text", content: "", start: 0, end: 0 }])
+  })
+
   test("applies the selection and runs a client argument command without admitting it to the session", async () => {
     const state = createMemoryComposerState().capture()
 

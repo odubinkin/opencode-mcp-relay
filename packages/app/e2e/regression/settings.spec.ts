@@ -1,8 +1,11 @@
 import { expect, test, type Page } from "@playwright/test"
 import type { ConfigEntry, OpenCodeEvent, WorktreeDirectory } from "@opencode/client/promise"
+import { McpRelay } from "@opencode/schema/mcp-relay"
+import { AbsolutePath } from "@opencode/schema/schema"
+import { Session } from "@opencode/schema/session"
 import { NO_PROVIDER, REMOTE_SERVER, SERVER, holdRoute, project, session } from "../utils/app"
 import { mockMissingLocation, mockOpenCodeServer } from "../utils/mock-server"
-import { mockRemoteServer, mockWorkspace, openSettings, type WorkspaceInput } from "../utils/workspace"
+import { mockRemoteServer, mockWorkspace, openSession, openSettings, type WorkspaceInput } from "../utils/workspace"
 
 const directory = "C:/Projects/settings-demo"
 
@@ -16,6 +19,212 @@ const override =
 const contributors = "https://api.github.com/repos/anomalyco/opencode/contributors?anon=1&per_page=1"
 
 test.use({ serviceWorkers: "block" })
+
+test("connect configures Relay and its slash command opens a dedicated external session without a model", async ({
+  page,
+}) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"])
+  const relayID = Session.ID.make("ses_relay_settings")
+  const state: {
+    status: McpRelay.Status
+    starts: number
+    stops: number
+    saved?: McpRelay.Configure
+    secrets: { clientSecret: string; password: string }
+  } = {
+    status: { running: false },
+    starts: 0,
+    stops: 0,
+    secrets: { clientSecret: "client-secret", password: "owner-password" },
+  }
+  const view = await openSession(page, {
+    name: "Relay settings",
+    directory,
+    provider: NO_PROVIDER,
+    sessions: [
+      { id: "ses_normal_settings", title: "Normal chat" },
+      { id: relayID, title: "MCP Relay", driver: "external" },
+    ],
+    seed: { tabs: ["ses_normal_settings"] },
+    relay: {
+      status: () => state.status,
+      configure: (input) => {
+        state.saved = input
+        state.secrets = {
+          clientSecret: input.clientSecret || state.secrets.clientSecret,
+          password: input.password || state.secrets.password,
+        }
+        return (state.status = { running: false, settings: input.settings })
+      },
+      start: () => {
+        state.starts += 1
+        return (state.status = {
+          ...state.status,
+          running: true,
+          directory: AbsolutePath.make(directory),
+          sessionID: relayID,
+          url: "https://relay.example/mcp",
+        })
+      },
+      stop: () => {
+        state.stops += 1
+        return (state.status = { running: false, settings: state.status.settings })
+      },
+      secrets: () => state.secrets,
+    },
+  })
+  await view.editor.fill("/connect")
+  await view.editor.press("Enter")
+  await page.getByRole("button", { name: "MCP Relay Mode", exact: true }).click()
+  const settings = page.getByRole("dialog")
+  await settings.getByLabel("Public URL (origin without /mcp)").fill("https://relay.example/")
+  await settings
+    .getByLabel("Callback URLs (one per line, copied from ChatGPT)")
+    .fill("https://chatgpt.com/connector/oauth/test")
+  await settings.getByLabel("OAuth client secret", { exact: true }).fill("custom-client-secret")
+  await settings.getByLabel("Access password", { exact: true }).fill("custom-owner-password")
+  await expect(settings.getByLabel("OAuth client secret", { exact: true })).toHaveAttribute("type", "password")
+  await expect(settings.getByLabel("Access password", { exact: true })).toHaveAttribute("type", "password")
+  await settings.getByRole("button", { name: "Show OAuth client secret", exact: true }).click()
+  await expect(settings.getByLabel("OAuth client secret", { exact: true })).toHaveAttribute("type", "text")
+  await expect(settings.getByLabel("Access password", { exact: true })).toHaveAttribute("type", "password")
+  await settings.getByRole("button", { name: "Hide OAuth client secret", exact: true }).click()
+  await expect(settings.getByLabel("OAuth client secret", { exact: true })).toHaveAttribute("type", "password")
+  await settings.getByRole("button", { name: "Copy client secret", exact: true }).click()
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("custom-client-secret")
+  await settings.getByRole("button", { name: "Copy access password", exact: true }).click()
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("custom-owner-password")
+  expect(state.saved).toBeUndefined()
+  await settings.getByRole("button", { name: "Save settings", exact: true }).click()
+  await expect(settings.getByRole("button", { name: "Save settings", exact: true })).toBeEnabled()
+  await expect(settings.getByRole("button", { name: "Copy client secret", exact: true })).toBeVisible()
+  expect(state.saved?.settings).toEqual({
+    issuer: "https://relay.example/",
+    hostname: "127.0.0.1",
+    port: 4099,
+    clientID: "opencode-relay",
+    redirectURIs: ["https://chatgpt.com/connector/oauth/test"],
+  })
+  expect(state.starts).toBe(0)
+  expect(state.saved?.clientSecret).toBe("custom-client-secret")
+  expect(state.saved?.password).toBe("custom-owner-password")
+  for (const item of [
+    { name: "Copy MCP URL", value: "https://relay.example/mcp" },
+    { name: "Copy Auth URL", value: "https://relay.example/oauth/authorize" },
+    { name: "Copy Token URL", value: "https://relay.example/oauth/token" },
+    { name: "Copy authorization server base", value: "https://relay.example" },
+    { name: "Copy Resource", value: "https://relay.example/mcp" },
+  ]) {
+    await settings.getByRole("button", { name: item.name, exact: true }).click()
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(item.value)
+  }
+  await page.keyboard.press("Escape")
+  await expect(settings).toBeHidden()
+  await view.editor.fill("/mcprelaymode")
+  await view.editor.press("Enter")
+  await expect(page).toHaveURL(new RegExp(`/session/${relayID}$`))
+  await expect(page.getByText("MCP Relay · external model", { exact: true })).toBeVisible()
+  expect(state.starts).toBe(1)
+  await page.locator('[data-component="composer-editor"]').fill("/relay")
+  await page.locator('[data-component="composer-editor"]').press("Enter")
+  await expect(page.getByRole("dialog").getByText("Relay is running", { exact: true })).toBeVisible()
+  expect(state.starts).toBe(1)
+  await settings.getByLabel("OAuth client ID", { exact: true }).fill("updated-relay")
+  await expect(settings.getByLabel("OAuth client secret", { exact: true })).toHaveValue("custom-client-secret")
+  await expect(settings.getByLabel("Access password", { exact: true })).toHaveValue("custom-owner-password")
+  await settings.getByRole("button", { name: "Generate OAuth client secret", exact: true }).click()
+  await settings.getByRole("button", { name: "Generate access password", exact: true }).click()
+  const generatedSecret = await settings.getByLabel("OAuth client secret", { exact: true }).inputValue()
+  const generatedPassword = await settings.getByLabel("Access password", { exact: true }).inputValue()
+  expect(generatedSecret).toMatch(/^[a-f0-9]{64}$/)
+  expect(generatedPassword).toMatch(/^[a-f0-9]{64}$/)
+  expect(generatedSecret).not.toBe(generatedPassword)
+  await settings.getByRole("button", { name: "Show access password", exact: true }).click()
+  await expect(settings.getByLabel("Access password", { exact: true })).toHaveAttribute("type", "text")
+  await settings.getByRole("button", { name: "Hide access password", exact: true }).click()
+  await expect(settings.getByLabel("Access password", { exact: true })).toHaveAttribute("type", "password")
+  await settings.getByRole("button", { name: "Copy client secret", exact: true }).click()
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(generatedSecret)
+  await settings.getByRole("button", { name: "Copy access password", exact: true }).click()
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(generatedPassword)
+  expect(state.secrets).toEqual({ clientSecret: "custom-client-secret", password: "custom-owner-password" })
+  expect(state.starts).toBe(1)
+  await settings.getByRole("button", { name: "Save and restart Relay", exact: true }).click()
+  await expect(settings.getByText("Relay is running", { exact: true })).toBeVisible()
+  expect(state.saved?.settings.clientID).toBe("updated-relay")
+  expect(state.saved?.clientSecret).toBe(generatedSecret)
+  expect(state.saved?.password).toBe(generatedPassword)
+  expect(state.starts).toBe(2)
+  expect(state.stops).toBe(1)
+  await page.keyboard.press("Escape")
+  await expect(settings).toBeHidden()
+  const relayTab = page.locator("[data-titlebar-tab-slot]").filter({ hasText: "MCP Relay" })
+  await relayTab.getByRole("button", { name: "Close tab", exact: true }).click()
+  await expect(relayTab).toHaveCount(0)
+  expect(state.stops).toBe(2)
+  await view.editor.fill("/connect")
+  await view.editor.press("Enter")
+  await page.getByRole("button", { name: "MCP Relay Mode", exact: true }).click()
+  await expect(settings.getByText("Relay is stopped", { exact: true })).toBeVisible()
+  await expect(settings.getByLabel("OAuth client ID", { exact: true })).toHaveValue("updated-relay")
+  await expect(settings.getByLabel("OAuth client secret", { exact: true })).toHaveValue(generatedSecret)
+  await expect(settings.getByLabel("Access password", { exact: true })).toHaveValue(generatedPassword)
+  await expect(settings.getByLabel("OAuth client secret", { exact: true })).toHaveAttribute("type", "password")
+  await expect(settings.getByLabel("Access password", { exact: true })).toHaveAttribute("type", "password")
+  await settings.getByRole("button", { name: "Save and start Relay", exact: true }).click()
+  await expect(settings.getByText("Relay is running", { exact: true })).toBeVisible()
+  await page.getByRole("dialog").getByRole("button", { name: "Stop Relay", exact: true }).click()
+  await expect(page.getByRole("dialog").getByText("Relay is stopped", { exact: true })).toBeVisible()
+})
+
+test("Relay setup scrolls in a short window and only applies settings after an explicit save", async ({ page }) => {
+  await page.setViewportSize({ width: 640, height: 320 })
+  const state: { status: McpRelay.Status; saves: number; starts: number } = {
+    status: { running: false },
+    saves: 0,
+    starts: 0,
+  }
+  const view = await openSession(page, {
+    name: "Relay setup",
+    directory,
+    provider: NO_PROVIDER,
+    relay: {
+      status: () => state.status,
+      configure: (input) => {
+        state.saves += 1
+        return (state.status = { running: false, settings: input.settings })
+      },
+      start: () => {
+        state.starts += 1
+        return state.status
+      },
+      secrets: () => ({ clientSecret: "client-secret", password: "owner-password" }),
+    },
+  })
+  await view.editor.fill("/relay")
+  await view.editor.press("Enter")
+  const dialog = page.getByRole("dialog")
+  await expect(dialog).toBeInViewport({ ratio: 1 })
+  const issuer = dialog.getByLabel("Public URL (origin without /mcp)")
+  await issuer.fill("https://relay.example")
+  await issuer.press("Enter")
+  await expect(dialog.getByText("Relay is stopped", { exact: true })).toBeVisible()
+  const callbacks = dialog.getByLabel("Callback URLs (one per line, copied from ChatGPT)")
+  await issuer.hover()
+  await page.mouse.wheel(0, 800)
+  await expect(issuer).not.toBeInViewport()
+  await callbacks.fill("https://chatgpt.com/connector/oauth/test")
+  await expect(callbacks).toBeInViewport()
+  await expect(dialog.getByRole("button", { name: "Save settings", exact: true })).toBeInViewport()
+  expect(state.saves).toBe(0)
+  expect(state.starts).toBe(0)
+  await dialog.getByRole("button", { name: "Save settings", exact: true }).click()
+  await expect(dialog.getByRole("button", { name: "Copy access password", exact: true })).toBeEnabled()
+  expect(state.saves).toBe(1)
+  expect(state.starts).toBe(0)
+  await page.keyboard.press("Escape")
+  await expect(dialog).toBeHidden()
+})
 
 // One project with 12 worktrees, each with one session, and a configured zsh shell.
 function open(page: Page, input: Partial<WorkspaceInput> = {}) {
