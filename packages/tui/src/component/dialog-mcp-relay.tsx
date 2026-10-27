@@ -31,6 +31,7 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
     clientSecret: string
     password: string
     apiKey: string
+    mode: "public" | "tunnel"
     busy: boolean
     edit?: { title: string; value: string; save: (value: string) => void }
   }>({
@@ -38,6 +39,7 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
     clientSecret: "",
     password: "",
     apiKey: "",
+    mode: "public",
     busy: true,
   })
   const failure = (error: unknown) => {
@@ -60,7 +62,7 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
     void client.api.mcp.relay
       .status({ location: target })
       .then(async (status) => {
-        setState({ status, settings: status.settings ?? state.settings, busy: false })
+        setState({ status, settings: status.settings ?? state.settings, mode: status.settings?.tunnelID ? "tunnel" : "public", busy: false })
       })
       .catch(failure)
   })
@@ -81,9 +83,10 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
   }
   const save = async (launch = false) => {
     setState("busy", true)
+    const { tunnelID, ...settings } = state.settings
     const status = await client.api.mcp.relay.configure({
       location: target,
-      settings: state.settings,
+      settings: { ...settings, ...(state.mode === "tunnel" && tunnelID ? { tunnelID } : {}) },
       ...(state.clientSecret ? { clientSecret: state.clientSecret } : {}),
       ...(state.password ? { password: state.password } : {}),
       ...(state.apiKey ? { apiKey: state.apiKey } : {}),
@@ -111,7 +114,7 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
         void save(true).catch(failure)
       },
     },
-    {
+    ...(state.mode === "public" ? [{
       title: "Public URL (OAuth issuer)",
       footer: state.settings.issuer || "Required · https://your-domain",
       value: "issuer",
@@ -253,6 +256,27 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
           .catch(failure)
       },
     },
+    ] : [
+    {
+      title: "OpenAI Secure MCP Tunnel ID",
+      footer: state.settings.tunnelID || "Required · create tunnel in OpenAI Platform",
+      value: "tunnelID",
+      category: "Private tunnel · no Relay password",
+      disabled: state.status?.running,
+      onSelect: () =>
+        edit("OpenAI Tunnel ID", state.settings.tunnelID ?? "", (value) =>
+          setState("settings", "tunnelID", value || undefined),
+        ),
+    },
+    {
+      title: "OpenAI API key",
+      footer: state.apiKey ? "New value · save to apply" : "OpenAI Tunnel key · leave blank to keep saved",
+      value: "apiKey",
+      category: "Private tunnel · no Relay password",
+      disabled: state.status?.running,
+      onSelect: () => edit("OpenAI API key", state.apiKey, (value) => setState("apiKey", value)),
+    },
+    ]),
     {
       title: "Stop Relay",
       value: "stop",
@@ -267,23 +291,20 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
       },
     },
     {
-      title: "OpenAI Secure MCP Tunnel ID",
-      footer: state.settings.tunnelID || "Optional · connect ChatGPT without a public URL",
-      value: "tunnelID",
-      category: "Tunnel",
+      title: "Use OpenAI Tunnel · private, no Relay password",
+      value: "mode-tunnel",
+      category: "Connection mode",
+      footer: state.mode === "tunnel" ? "Selected" : undefined,
       disabled: state.status?.running,
-      onSelect: () =>
-        edit("OpenAI Tunnel ID · leave empty for public HTTPS mode", state.settings.tunnelID ?? "", (value) =>
-          setState("settings", "tunnelID", value || undefined),
-        ),
+      onSelect: () => setState("mode", "tunnel"),
     },
     {
-      title: "OpenAI API key",
-      footer: state.apiKey ? "New value · save to apply" : "Leave blank to keep the saved key",
-      value: "apiKey",
-      category: "Tunnel",
+      title: "Use public HTTPS · OAuth access password",
+      value: "mode-public",
+      category: "Connection mode",
+      footer: state.mode === "public" ? "Selected" : undefined,
       disabled: state.status?.running,
-      onSelect: () => edit("OpenAI API key", state.apiKey, (value) => setState("apiKey", value)),
+      onSelect: () => setState("mode", "public"),
     },
   ])
   return (

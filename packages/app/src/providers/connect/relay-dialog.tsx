@@ -29,6 +29,7 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
     busy: boolean
     error?: string
     copied: boolean
+    mode: "tunnel" | "public"
   }>({
     settings: { issuer: "", hostname: "127.0.0.1", port: 4099, clientID: "opencode-relay", redirectURIs: [] },
     callbacks: "",
@@ -36,6 +37,7 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
     revealed: { clientSecret: false, password: false },
     busy: true,
     copied: false,
+    mode: "public",
   })
   const failure = (error: unknown) =>
     setState({ busy: false, error: error instanceof Error ? error.message : String(error) })
@@ -60,6 +62,7 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
           status,
           secrets,
           settings: status.settings ?? state.settings,
+          mode: status.settings?.tunnelID ? "tunnel" : "public",
           callbacks: status.settings?.redirectURIs.join("\n") ?? "",
           busy: false,
         })
@@ -75,10 +78,12 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
     if (state.status?.running) {
       setState("status", await sdk.api.mcp.relay.stop({ location }))
     }
+    const { tunnelID, ...settings } = state.settings
     const status = await sdk.api.mcp.relay.configure({
       location,
       settings: {
-        ...state.settings,
+        ...settings,
+        ...(state.mode === "tunnel" && tunnelID ? { tunnelID } : {}),
         redirectURIs: state.callbacks
           .split(/[\n,]/)
           .map((value) => value.trim())
@@ -129,14 +134,30 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
             <p>{language.t("relay.restartHint")}</p>
           </Show>
           <fieldset disabled={state.busy} class="flex flex-col gap-3">
-            <p>{language.t("relay.tunnelHint")}</p>
-            <TextField
-              label={language.t("relay.tunnelID")}
-              value={state.settings.tunnelID ?? ""}
-              placeholder={language.t("relay.tunnelPlaceholder")}
-              onChange={(value) => setState("settings", "tunnelID", value || undefined)}
-            />
-            <Show when={state.settings.tunnelID}>
+            <div class="flex flex-wrap gap-2" role="group" aria-label={language.t("relay.connectionMode")}>
+              <Button
+                type="button"
+                aria-pressed={state.mode === "tunnel"}
+                onClick={() => setState("mode", "tunnel")}
+              >
+                {language.t("relay.modeTunnel")}
+              </Button>
+              <Button
+                type="button"
+                aria-pressed={state.mode === "public"}
+                onClick={() => setState("mode", "public")}
+              >
+                {language.t("relay.modePublic")}
+              </Button>
+            </div>
+            <Show when={state.mode === "tunnel"}>
+              <p>{language.t("relay.tunnelHint")}</p>
+              <TextField
+                label={language.t("relay.tunnelID")}
+                value={state.settings.tunnelID ?? ""}
+                placeholder={language.t("relay.tunnelPlaceholder")}
+                onChange={(value) => setState("settings", "tunnelID", value || undefined)}
+              />
               <TextField
                 label={language.t("relay.tunnelKey")}
                 type="password"
@@ -146,6 +167,8 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
                 onChange={(value) => setState("secrets", "apiKey", value)}
               />
             </Show>
+            <Show when={state.mode === "public"}>
+              <p>{language.t("relay.publicHint")}</p>
             <TextField
               label={language.t("relay.issuer")}
               value={state.settings.issuer}
@@ -234,13 +257,14 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
               )}
             </For>
             <p>{language.t("relay.secretHint")}</p>
+            </Show>
           </fieldset>
           <Show when={state.error}>
             <p role="alert" class="text-text-critical-base">
               {state.error}
             </p>
           </Show>
-          <Show when={state.status?.settings && !state.settings.tunnelID}>
+          <Show when={state.status?.settings && state.mode === "public"}>
             <p>{language.t("relay.credentials", { issuer: issuer() })}</p>
             <div class="flex flex-wrap gap-2">
               <For

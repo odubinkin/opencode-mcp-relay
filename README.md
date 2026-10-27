@@ -103,6 +103,12 @@ Learn more about [agents](https://opencode.ai/v2/docs/agents).
 
 Run OpenCode normally, then use `/mcprelaymode` (or `/relay`) to open a dedicated session driven by an external MCP
 client. First use opens setup automatically. `/connect` → **MCP Relay Mode** opens the same settings and status panel.
+In settings, choose **OpenAI Tunnel (private, no Relay password)** or **Public HTTPS (OAuth password)**.
+The tunnel option is recommended for a personal ChatGPT connection: it uses a Tunnel ID and API key, with access
+controlled by OpenAI workspace/tunnel permissions and normal OpenCode tool permissions, not a Relay password.
+The public HTTPS option retains the separate OAuth Access password prompt. Switching modes keeps saved credentials,
+but uses authentication only for the selected mode. Never expose the unauthenticated tunnel-mode loopback listener
+to another machine.
 Normal sessions keep their usual model-driven behavior. Relay exposes native OpenCode tools, agent prompts,
 repository instructions and skills; subagents are disabled. Native permission requests, questions and tool activity
 appear in the Relay session in the TUI or GUI.
@@ -145,8 +151,9 @@ and Resource (the MCP URL), in addition to the MCP URL and client ID. No Registr
 
 Non-secret `mcpRelay` settings are saved to OpenCode's global configuration, secrets use its Credential store,
 and session bindings plus issued token hashes use the main database's existing KV table. No Relay-specific database
-or `.env` is needed. Repository configuration cannot provide host-wide Relay settings. The listener starts only on
-explicit activation; **Stop Relay** or closing its session tab stops it without converting or deleting its session.
+or `.env` is needed. Repository configuration cannot provide host-wide Relay settings. The listener starts when
+its Relay session opens, including restoring that session on application startup; **Stop Relay** or closing its
+session tab stops it without converting or deleting its session.
 Settings remain editable while running and apply only after **Save and restart Relay**. Switching UI tabs never
 retargets a connected model. Backend shutdown stops the listener; activation after restart reuses the saved session
 and unexpired OAuth tokens. Existing standalone MCP entry points remain supported.

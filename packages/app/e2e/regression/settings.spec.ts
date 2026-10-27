@@ -115,6 +115,12 @@ test("connect configures Relay and its slash command opens a dedicated external 
   await view.editor.press("Enter")
   await page.getByRole("button", { name: "MCP Relay Mode", exact: true }).click()
   const settings = page.getByRole("dialog")
+  await settings.getByRole("button", { name: "OpenAI Tunnel · private, no password" }).click()
+  await expect(settings.getByLabel("OpenAI Secure MCP Tunnel ID (optional)")).toBeVisible()
+  await expect(settings.getByLabel("Access password", { exact: true })).toBeHidden()
+  await settings.getByRole("button", { name: "Public HTTPS · OAuth password" }).click()
+  await expect(settings.getByLabel("Access password", { exact: true })).toBeVisible()
+  await expect(settings.getByLabel("OpenAI Secure MCP Tunnel ID (optional)")).toBeHidden()
   await settings.getByLabel("Public URL (origin without /mcp)").fill("https://relay.example/")
   await settings
     .getByLabel("Callback URLs (one per line, copied from ChatGPT)")
