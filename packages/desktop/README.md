@@ -20,6 +20,25 @@ including MCP Relay. It does not download an official CLI from npm.
 bun run build && bun run package
 ```
 
+### Local macOS bundle (without an Apple Developer certificate)
+
+For an unpacked local macOS build, use ad-hoc signing **without Hardened Runtime**. In macOS 27,
+combining ad-hoc signing with `codesign --options runtime` can cause a `DYLD` crash on launch:
+`Electron Framework` is rejected because the executable and framework have incompatible signing teams.
+`codesign --verify` alone does not catch this loader failure.
+
+After building the Desktop JS and fork CLI, package and sign the local app as follows:
+
+```sh
+CSC_IDENTITY_AUTO_DISCOVERY=false bunx electron-builder --mac --arm64 --dir \
+  --config electron-builder.config.ts --config.mac.notarize=false
+sh scripts/sign-local-mac.sh 'dist/mac-arm64/OpenCode Dev.app'
+```
+
+If you override `productName`, use the corresponding `.app` path. The script signs nested Electron components,
+verifies signatures, and executes Electron in Node mode to check actual framework loading without starting the app
+or touching the running service. Keep Hardened Runtime and normal signing/notarization for official distribution.
+
 To reuse a CLI that has already been built, set `OPENCODE_CLI_DIST`. This works in every channel;
 the release workflow supplies the artifact from the same run:
 
