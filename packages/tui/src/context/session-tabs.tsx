@@ -140,6 +140,29 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
       unread: {},
     })
     const current = () => (route.data.type === "session" ? root(route.data.sessionID) : undefined)
+    createEffect(
+      on(
+        [
+          () => {
+            const sessionID = current()
+            return sessionID && data.session.get(sessionID)?.driver === "external" ? sessionID : undefined
+          },
+          () => client.connection.status(),
+        ],
+        ([sessionID, connection]) => {
+          if (!sessionID || connection !== "connected") return
+          const session = data.session.get(sessionID)
+          if (!session) return
+          void client.api.mcp.relay
+            .status({ location: session.location })
+            .then((status) => {
+              if (!status.settings || status.running || current() !== sessionID) return
+              return client.api.mcp.relay.start({ location: session.location })
+            })
+            .catch((error) => toast.show({ title: "MCP Relay", message: errorMessage(error), variant: "error" }))
+        },
+      ),
+    )
     createSessionRetention({
       session: data.session,
       current: () =>

@@ -20,6 +20,44 @@ const contributors = "https://api.github.com/repos/anomalyco/opencode/contributo
 
 test.use({ serviceWorkers: "block" })
 
+test("restored MCP Relay session starts its stopped listener on application launch", async ({ page }) => {
+  const relayID = Session.ID.make("ses_relay_restored")
+  const state: { status: McpRelay.Status; starts: number } = {
+    status: {
+      running: false,
+      settings: {
+        issuer: "https://relay.example",
+        hostname: "127.0.0.1",
+        port: 4099,
+        clientID: "opencode-relay",
+        redirectURIs: [],
+      },
+    },
+    starts: 0,
+  }
+  await openSession(page, {
+    name: "Restored relay",
+    directory,
+    provider: NO_PROVIDER,
+    sessions: [{ id: relayID, title: "MCP Relay", driver: "external" }],
+    seed: { tabs: [relayID] },
+    relay: {
+      status: () => state.status,
+      configure: () => state.status,
+      start: () => {
+        state.starts++
+        return (state.status = { ...state.status, running: true, sessionID: relayID, directory: AbsolutePath.make(directory) })
+      },
+      stop: () => (state.status = { ...state.status, running: false }),
+      secrets: () => ({ clientSecret: "test-secret", password: "test-password" }),
+    },
+  })
+  await expect.poll(() => state.starts).toBe(1)
+  state.status = { ...state.status, running: false }
+  await page.reload()
+  await expect.poll(() => state.starts).toBe(2)
+})
+
 test("connect configures Relay and its slash command opens a dedicated external session without a model", async ({
   page,
 }) => {

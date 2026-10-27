@@ -1,4 +1,4 @@
-import { ErrorBoundary, createEffect, createMemo, Show, type ParentProps } from "solid-js"
+import { ErrorBoundary, createEffect, createMemo, on, Show, type ParentProps } from "solid-js"
 import { useParams } from "@solidjs/router"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -15,6 +15,8 @@ import { useLanguage } from "@/runtime/i18n/language"
 import { useNotification } from "@/shell/notifications/notification"
 import { ComposerPersistenceProvider } from "@/composer/persistence"
 import { useData, useServer } from "@/runtime/server/current"
+import { useServerSDK } from "@/runtime/server/client"
+import { showToast } from "@/shell/notifications/toast"
 import { ServerConnection } from "@/runtime/server/registry"
 import { useSettingsCommand } from "@/settings/command"
 import { SessionUIProvider } from "@/shell/routes/session-ui-provider"
@@ -119,6 +121,8 @@ function ResolvedTargetSessionRoute() {
   const server = useServer()
   const tabs = useTabs()
   const data = useData()
+  const sdk = useServerSDK()
+  const language = useLanguage()
 
   const current = createSessionResolution(
     () => params.id,
@@ -127,6 +131,28 @@ function ResolvedTargetSessionRoute() {
   )
 
   const directory = createMemo(() => current()?.location.directory)
+
+  createEffect(
+    on(
+      [
+        () => (current()?.driver === "external" ? current()?.id : undefined),
+        () => server.ctx.sdk.connection.status(),
+      ],
+      ([sessionID, connection]) => {
+        const session = current()
+        if (!sessionID || !session || connection !== "connected") return
+        void sdk.api.mcp.relay
+          .status({ location: session.location })
+          .then((status) => {
+            if (!status.settings || status.running || current()?.id !== sessionID) return
+            return sdk.api.mcp.relay.start({ location: session.location })
+          })
+          .catch((error) => {
+            showToast({ title: language.t("common.requestFailed"), description: String(error), variant: "error" })
+          })
+      },
+    ),
+  )
 
   return (
     <Show
