@@ -1,5 +1,5 @@
 import type { ConfigMcpRelay, McpRelayStatus } from "@opencode/client"
-import { createMemo, onMount, Show } from "solid-js"
+import { createEffect, createMemo, on, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useClient } from "../context/client"
 import { useClipboard } from "../context/clipboard"
@@ -30,12 +30,14 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
     settings: ConfigMcpRelay
     clientSecret: string
     password: string
+    apiKey: string
     busy: boolean
     edit?: { title: string; value: string; save: (value: string) => void }
   }>({
     settings: { issuer: "", hostname: "127.0.0.1", port: 4099, clientID: "opencode-relay", redirectURIs: [] },
     clientSecret: "",
     password: "",
+    apiKey: "",
     busy: true,
   })
   const failure = (error: unknown) => {
@@ -59,12 +61,17 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
       .status({ location: target })
       .then(async (status) => {
         setState({ status, settings: status.settings ?? state.settings, busy: false })
-        if (!props.start || !status.settings) return
-        if (status.running) return open(status, false)
-        await start()
       })
       .catch(failure)
   })
+  // A reused dialog instance may receive start=true after its original onMount ran.
+  createEffect(
+    on([() => props.start, () => state.status?.settings], ([requested, settings]) => {
+      if (!requested || !settings) return
+      if (state.status?.running) return open(state.status, false)
+      void start().catch(failure)
+    }),
+  )
   const edit = (title: string, value: string, save: (value: string) => void) => {
     setState("edit", { title, value, save })
   }
@@ -79,6 +86,7 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
       settings: state.settings,
       ...(state.clientSecret ? { clientSecret: state.clientSecret } : {}),
       ...(state.password ? { password: state.password } : {}),
+      ...(state.apiKey ? { apiKey: state.apiKey } : {}),
     })
     setState({ status, busy: false, clientSecret: "", password: "" })
     if (launch) await start()
@@ -257,6 +265,25 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
           .then((status) => setState({ status, busy: false }))
           .catch(failure)
       },
+    },
+    {
+      title: "OpenAI Secure MCP Tunnel ID",
+      footer: state.settings.tunnelID || "Optional · connect ChatGPT without a public URL",
+      value: "tunnelID",
+      category: "Tunnel",
+      disabled: state.status?.running,
+      onSelect: () =>
+        edit("OpenAI Tunnel ID · leave empty for public HTTPS mode", state.settings.tunnelID ?? "", (value) =>
+          setState("settings", "tunnelID", value || undefined),
+        ),
+    },
+    {
+      title: "OpenAI API key",
+      footer: state.apiKey ? "New value · save to apply" : "Leave blank to keep the saved key",
+      value: "apiKey",
+      category: "Tunnel",
+      disabled: state.status?.running,
+      onSelect: () => edit("OpenAI API key", state.apiKey, (value) => setState("apiKey", value)),
     },
   ])
   return (

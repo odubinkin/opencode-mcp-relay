@@ -79,7 +79,7 @@ const make = Effect.gen(function* () {
     secrets: secrets.pipe(
       Effect.flatMap((value) =>
         value["client-secret"] && value.password
-          ? Effect.succeed({ clientSecret: value["client-secret"], password: value.password })
+          ? Effect.succeed({ clientSecret: value["client-secret"], password: value.password, ...(value["api-key"] ? { apiKey: value["api-key"] } : {}) })
           : Effect.fail(new InvalidRequestError({ message: "Configure MCP Relay first" })),
       ),
     ),
@@ -94,17 +94,28 @@ const make = Effect.gen(function* () {
           const values = yield* secrets
           const clientSecret = input.clientSecret || values["client-secret"] || randomBytes(32).toString("base64url")
           const password = input.password || values.password || randomBytes(24).toString("base64url")
-          const { McpOAuth } = yield* Effect.promise(() => import("./oauth"))
-          yield* Effect.try({
-            try: () => McpOAuth.make({ ...input.settings, clientSecret, password }),
-            catch: (cause) =>
-              new InvalidRequestError({ message: cause instanceof Error ? cause.message : String(cause) }),
-          })
+          if (input.settings.tunnelID) {
+            const { OpenAiTunnel } = yield* Effect.promise(() => import("./tunnel"))
+            yield* Effect.try({
+              try: () => OpenAiTunnel.validate(input.settings.tunnelID!),
+              catch: (cause) => new InvalidRequestError({ message: cause instanceof Error ? cause.message : String(cause) }),
+            })
+            if (!input.apiKey && !values["api-key"])
+              return yield* new InvalidRequestError({ message: "OpenAI API key is required for Secure MCP Tunnel" })
+          } else {
+            const { McpOAuth } = yield* Effect.promise(() => import("./oauth"))
+            yield* Effect.try({
+              try: () => McpOAuth.make({ ...input.settings, clientSecret, password }),
+              catch: (cause) =>
+                new InvalidRequestError({ message: cause instanceof Error ? cause.message : String(cause) }),
+            })
+          }
           const entries = yield* credentials.list(integrationID)
           yield* Effect.forEach(
             [
               { label: "client-secret", key: clientSecret },
               { label: "password", key: password },
+              ...(input.apiKey ? [{ label: "api-key", key: input.apiKey }] : []),
             ],
             (value) => {
               const existing = entries.find((entry) => entry.label === value.label)
@@ -132,10 +143,12 @@ const make = Effect.gen(function* () {
           const settings = saved.settings
           if (!settings) return yield* new InvalidRequestError({ message: "Configure MCP Relay first" })
           const values = yield* secrets
-          if (!values["client-secret"] || !values.password)
+          if (!settings.tunnelID && (!values["client-secret"] || !values.password))
             return yield* new InvalidRequestError({
               message: "MCP Relay credentials are missing; save its settings again",
             })
+          if (settings.tunnelID && !values["api-key"])
+            return yield* new InvalidRequestError({ message: "OpenAI tunnel API key is missing" })
           const stored = Option.getOrUndefined(Schema.decodeUnknownOption(binding)(yield* kv.get("mcp-relay/session")))
           const tokens = yield* kv.get("mcp-relay/oauth")
           const scope = yield* Scope.fork(parent)
@@ -149,9 +162,9 @@ const make = Effect.gen(function* () {
               Effect.try({
                 try: () =>
                   McpServer.listen(runtime, {
-                    hostname: settings.hostname,
+                    hostname: settings.tunnelID ? "127.0.0.1" : settings.hostname,
                     port: settings.port,
-                    oauth: {
+                    ...(!settings.tunnelID ? { oauth: {
                       ...settings,
                       clientSecret: values["client-secret"],
                       password: values.password,
@@ -159,7 +172,7 @@ const make = Effect.gen(function* () {
                         value: typeof tokens === "string" ? tokens : undefined,
                         save: (value) => run(kv.set("mcp-relay/oauth", value)),
                       },
-                    },
+                    } } : {}),
                     onRequest: (event) => {
                       void run(Effect.logDebug("MCP Relay HTTP", event))
                     },
@@ -169,13 +182,27 @@ const make = Effect.gen(function* () {
               }),
               (listener) => Effect.promise(() => Promise.resolve(listener.close())),
             )
+            if (settings.tunnelID) {
+              const { OpenAiTunnel } = yield* Effect.promise(() => import("./tunnel"))
+              yield* Effect.acquireRelease(
+                Effect.tryPromise({
+                  try: () => OpenAiTunnel.connect({
+                    tunnelID: settings.tunnelID!,
+                    apiKey: values["api-key"]!,
+                    localURL: listener.url,
+                  }),
+                  catch: (cause) => new InvalidRequestError({ message: cause instanceof Error ? cause.message : String(cause) }),
+                }),
+                (tunnel) => Effect.promise(() => tunnel.close()),
+              )
+            }
             yield* kv.set("mcp-relay/session", { sessionID: runtime.sessionID, directory })
             const result = McpRelay.Status.make({
               running: true,
               settings,
               sessionID: runtime.sessionID,
               directory,
-              url: `${new URL(settings.issuer).origin}/mcp`,
+              ...(!settings.tunnelID ? { url: `${new URL(settings.issuer).origin}/mcp` } : {}),
               localURL: listener.url,
             })
             yield* Ref.set(active, { scope, status: result })

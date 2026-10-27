@@ -1421,7 +1421,12 @@ export function make(options: ClientOptions) {
               method: "PUT",
               path: `/api/mcp/relay`,
               query: { location: input["location"] },
-              body: { settings: input["settings"], clientSecret: input["clientSecret"], password: input["password"] },
+              body: {
+                settings: input["settings"],
+                clientSecret: input["clientSecret"],
+                password: input["password"],
+                apiKey: input["apiKey"],
+              },
               successStatus: 200,
               declaredStatuses: [400, 401, 404],
               empty: false,

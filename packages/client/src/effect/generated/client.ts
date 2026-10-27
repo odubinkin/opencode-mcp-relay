@@ -1070,7 +1070,12 @@ const EndpointMcpRelayConfigure = (raw: RawClient["server.mcp"]) => (input: McpR
   preserveEffect<McpRelayConfigureOutput>()(
     raw["mcp.relay.configure"]({
       query: { location: input["location"] },
-      payload: { settings: input["settings"], clientSecret: input["clientSecret"], password: input["password"] },
+      payload: {
+        settings: input["settings"],
+        clientSecret: input["clientSecret"],
+        password: input["password"],
+        apiKey: input["apiKey"],
+      },
     }).pipe(Effect.mapError(mapClientError)),
   )
 

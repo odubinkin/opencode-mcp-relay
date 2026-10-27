@@ -122,6 +122,15 @@ as the public URL. Add the exact callback URL shown by your MCP client. Save set
 secret and access password from the panel, then start Relay. The access password is a dedicated Relay secret, not
 your operating-system or OpenCode account password.
 
+Alternatively, use **OpenAI Secure MCP Tunnel** without a public HTTPS endpoint or `cloudflared`. First create a
+private tunnel under [OpenAI Platform tunnel settings](https://platform.openai.com/settings) and associate it with
+the intended ChatGPT workspace. In Relay settings, enter the tunnel ID (`tunnel_...`) and an OpenAI API key with
+**Tunnels Read + Use** access, then save and start Relay. OpenCode connects directly to OpenAI over outbound HTTPS;
+its MCP listener is restricted to `127.0.0.1`, without local OAuth. In ChatGPT, add a custom MCP server, choose
+**Tunnel** as the connection type, and select or paste the same tunnel ID. The API key is stored in OpenCode's
+credential store rather than its configuration. Remove the tunnel ID to return to the public HTTPS/OAuth mode.
+The tunnel must already exist in your OpenAI Platform account; no additional tunnel process is needed.
+
 The settings panel also accepts your own **OAuth client secret** and **Access password**, with a separate **Generate**
 action for each. Editing or generating a value only updates the draft until you save. Empty values preserve existing
 credentials, or generate them on first save. After replacing the client secret, update the MCP client's settings too.

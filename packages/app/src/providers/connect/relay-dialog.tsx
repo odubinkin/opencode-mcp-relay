@@ -24,7 +24,7 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
     status?: McpRelayStatus
     settings: ConfigMcpRelay
     callbacks: string
-    secrets: { clientSecret: string; password: string }
+    secrets: { clientSecret: string; password: string; apiKey?: string }
     revealed: { clientSecret: boolean; password: boolean }
     busy: boolean
     error?: string
@@ -86,6 +86,7 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
       },
       ...(state.secrets.clientSecret ? { clientSecret: state.secrets.clientSecret } : {}),
       ...(state.secrets.password ? { password: state.secrets.password } : {}),
+      ...(state.secrets.apiKey ? { apiKey: state.secrets.apiKey } : {}),
     })
     const secrets = await sdk.api.mcp.relay.secrets({ location })
     setState({ status, settings: status.settings ?? state.settings, secrets, busy: false })
@@ -128,6 +129,23 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
             <p>{language.t("relay.restartHint")}</p>
           </Show>
           <fieldset disabled={state.busy} class="flex flex-col gap-3">
+            <p>{language.t("relay.tunnelHint")}</p>
+            <TextField
+              label={language.t("relay.tunnelID")}
+              value={state.settings.tunnelID ?? ""}
+              placeholder={language.t("relay.tunnelPlaceholder")}
+              onChange={(value) => setState("settings", "tunnelID", value || undefined)}
+            />
+            <Show when={state.settings.tunnelID}>
+              <TextField
+                label={language.t("relay.tunnelKey")}
+                type="password"
+                autocomplete="new-password"
+                value={state.secrets.apiKey ?? ""}
+                placeholder={language.t("relay.secretPlaceholder")}
+                onChange={(value) => setState("secrets", "apiKey", value)}
+              />
+            </Show>
             <TextField
               label={language.t("relay.issuer")}
               value={state.settings.issuer}
@@ -222,7 +240,7 @@ export function DialogMcpRelay(props: { directory?: string; start?: boolean }) {
               {state.error}
             </p>
           </Show>
-          <Show when={state.status?.settings}>
+          <Show when={state.status?.settings && !state.settings.tunnelID}>
             <p>{language.t("relay.credentials", { issuer: issuer() })}</p>
             <div class="flex flex-wrap gap-2">
               <For

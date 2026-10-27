@@ -230,9 +230,10 @@ export type ConfigMcpRelay = {
   port: number
   clientID: string
   redirectURIs: Array<string>
+  tunnelID?: string
 }
 
-export type McpRelaySecrets = { clientSecret: string; password: string }
+export type McpRelaySecrets = { clientSecret: string; password: string; apiKey?: string }
 
 export type McpStatusConnected = { status: "connected" }
 
@@ -5235,9 +5236,11 @@ export type McpRelayConfigureInput = {
       readonly port: number
       readonly clientID: string
       readonly redirectURIs: ReadonlyArray<string>
+      readonly tunnelID?: string
     }
     readonly clientSecret?: string
     readonly password?: string
+    readonly apiKey?: string
   }["settings"]
   readonly clientSecret?: {
     readonly settings: {
@@ -5246,9 +5249,11 @@ export type McpRelayConfigureInput = {
       readonly port: number
       readonly clientID: string
       readonly redirectURIs: ReadonlyArray<string>
+      readonly tunnelID?: string
     }
     readonly clientSecret?: string
     readonly password?: string
+    readonly apiKey?: string
   }["clientSecret"]
   readonly password?: {
     readonly settings: {
@@ -5257,10 +5262,25 @@ export type McpRelayConfigureInput = {
       readonly port: number
       readonly clientID: string
       readonly redirectURIs: ReadonlyArray<string>
+      readonly tunnelID?: string
     }
     readonly clientSecret?: string
     readonly password?: string
+    readonly apiKey?: string
   }["password"]
+  readonly apiKey?: {
+    readonly settings: {
+      readonly issuer: string
+      readonly hostname: string
+      readonly port: number
+      readonly clientID: string
+      readonly redirectURIs: ReadonlyArray<string>
+      readonly tunnelID?: string
+    }
+    readonly clientSecret?: string
+    readonly password?: string
+    readonly apiKey?: string
+  }["apiKey"]
 }
 
 export type McpRelayConfigureOutput = McpRelayStatus
@@ -6193,6 +6213,7 @@ export type ConfigUpdateInput = {
       readonly port: number
       readonly clientID: string
       readonly redirectURIs: ReadonlyArray<string>
+      readonly tunnelID?: string
     } | null
   }["shell"]
   readonly mcpRelay?: {
@@ -6203,6 +6224,7 @@ export type ConfigUpdateInput = {
       readonly port: number
       readonly clientID: string
       readonly redirectURIs: ReadonlyArray<string>
+      readonly tunnelID?: string
     } | null
   }["mcpRelay"]
 }

@@ -1658,6 +1658,7 @@ export type McpRelayStatusOutput = {
     readonly port: number
     readonly clientID: string
     readonly redirectURIs: ReadonlyArray<string>
+    readonly tunnelID?: string
   }
   readonly sessionID?: Session.ID
   readonly directory?: AbsolutePath
@@ -1674,9 +1675,11 @@ export type McpRelayConfigureInput = {
     readonly port: number
     readonly clientID: string
     readonly redirectURIs: ReadonlyArray<string>
+    readonly tunnelID?: string
   }
   readonly clientSecret?: string
   readonly password?: string
+  readonly apiKey?: string
 }
 export type McpRelayConfigureOutput = {
   readonly running: boolean
@@ -1686,6 +1689,7 @@ export type McpRelayConfigureOutput = {
     readonly port: number
     readonly clientID: string
     readonly redirectURIs: ReadonlyArray<string>
+    readonly tunnelID?: string
   }
   readonly sessionID?: Session.ID
   readonly directory?: AbsolutePath
@@ -1705,6 +1709,7 @@ export type McpRelayStartOutput = {
     readonly port: number
     readonly clientID: string
     readonly redirectURIs: ReadonlyArray<string>
+    readonly tunnelID?: string
   }
   readonly sessionID?: Session.ID
   readonly directory?: AbsolutePath
@@ -1722,6 +1727,7 @@ export type McpRelayStopOutput = {
     readonly port: number
     readonly clientID: string
     readonly redirectURIs: ReadonlyArray<string>
+    readonly tunnelID?: string
   }
   readonly sessionID?: Session.ID
   readonly directory?: AbsolutePath
@@ -1731,7 +1737,11 @@ export type McpRelayStopOutput = {
 export type McpRelayStopOperation<E = never> = (input?: McpRelayStopInput) => Effect.Effect<McpRelayStopOutput, E>
 
 export type McpRelaySecretsInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
-export type McpRelaySecretsOutput = { readonly clientSecret: string; readonly password: string }
+export type McpRelaySecretsOutput = {
+  readonly clientSecret: string
+  readonly password: string
+  readonly apiKey?: string
+}
 export type McpRelaySecretsOperation<E = never> = (
   input?: McpRelaySecretsInput,
 ) => Effect.Effect<McpRelaySecretsOutput, E>
@@ -2468,6 +2478,7 @@ export type ConfigUpdateInput = {
     readonly port: number
     readonly clientID: string
     readonly redirectURIs: ReadonlyArray<string>
+    readonly tunnelID?: string
   } | null
 }
 export type ConfigUpdateOutput = void

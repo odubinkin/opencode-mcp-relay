@@ -18,11 +18,13 @@ export type Status = typeof Status.Type
 export const Secrets = Schema.Struct({
   clientSecret: Schema.String,
   password: Schema.String,
+  apiKey: Schema.optionalKey(Schema.String),
 }).annotate({ identifier: "McpRelay.Secrets" })
 
 export const Configure = Schema.Struct({
   settings: ConfigMcpRelay.Info,
   clientSecret: Schema.optionalKey(Schema.String),
   password: Schema.optionalKey(Schema.String),
+  apiKey: Schema.optionalKey(Schema.String),
 }).annotate({ identifier: "McpRelay.Configure" })
 export type Configure = typeof Configure.Type
