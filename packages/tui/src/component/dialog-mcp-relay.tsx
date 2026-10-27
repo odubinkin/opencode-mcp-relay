@@ -261,7 +261,7 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
       title: "OpenAI Secure MCP Tunnel ID",
       footer: state.settings.tunnelID || "Required · create tunnel in OpenAI Platform",
       value: "tunnelID",
-      category: "Private tunnel · no Relay password",
+      category: "Tunnel transport · MCP auth: none",
       disabled: state.status?.running,
       onSelect: () =>
         edit("OpenAI Tunnel ID", state.settings.tunnelID ?? "", (value) =>
@@ -269,10 +269,10 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
         ),
     },
     {
-      title: "OpenAI API key",
-      footer: state.apiKey ? "New value · save to apply" : "OpenAI Tunnel key · leave blank to keep saved",
+      title: "OpenAI runtime API key (create separately; not OAuth)",
+      footer: state.apiKey ? "New value · save to apply" : "Platform → Organization → API keys · Restricted, Tunnels Read + Use",
       value: "apiKey",
-      category: "Private tunnel · no Relay password",
+      category: "Tunnel transport · MCP auth: none",
       disabled: state.status?.running,
       onSelect: () => edit("OpenAI API key", state.apiKey, (value) => setState("apiKey", value)),
     },
@@ -291,9 +291,9 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
       },
     },
     {
-      title: "Use OpenAI Tunnel · private, no Relay password",
+      title: "Use OpenAI Tunnel · ChatGPT auth: None",
       value: "mode-tunnel",
-      category: "Connection mode",
+      category: "Connection transport",
       footer: state.mode === "tunnel" ? "Selected" : undefined,
       disabled: state.status?.running,
       onSelect: () => setState("mode", "tunnel"),
@@ -301,7 +301,7 @@ export function DialogMcpRelay(props: { start?: boolean } = {}) {
     {
       title: "Use public HTTPS · OAuth access password",
       value: "mode-public",
-      category: "Connection mode",
+      category: "Connection transport",
       footer: state.mode === "public" ? "Selected" : undefined,
       disabled: state.status?.running,
       onSelect: () => setState("mode", "public"),
