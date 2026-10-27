@@ -43,6 +43,20 @@
 
 ---
 
+### What this fork adds
+
+This is **[odubinkin/opencode-mcp-relay](https://github.com/odubinkin/opencode-mcp-relay)**, a fork of [upstream OpenCode](https://github.com/anomalyco/opencode). It retains ordinary OpenCode sessions and tools; the fork-specific additions are:
+
+- **MCP Relay Mode** (`/mcprelaymode` or `/relay`): external MCP clients such as ChatGPT can drive native OpenCode tools in a dedicated, persisted external session without starting an internal model or subagents. Permissions, questions, tool calls and diffs remain visible in OpenCode.
+- **Two connection methods**: built-in OpenAI Secure MCP Tunnel (outbound HTTPS; no separate `cloudflared` or Relay OAuth password), or public HTTPS with a local OAuth server and a separate Relay access password. The GUI/TUI settings distinguish these modes.
+- **Session lifecycle**: restoring or opening an existing Relay session automatically starts the configured Relay; closing its tab or choosing Stop Relay shuts down the listener without removing the session history.
+- **Relay-aware activity display**: native tool calls carry the required `_opencode_summary` action description and appear as separate tool cards in the GUI.
+- **Fork-built desktop CLI**: this repository's desktop build packages the CLI compiled from the *same source checkout*, rather than silently downloading an upstream CLI that lacks Relay.
+
+**[MCP Relay setup and security guide (Русский)](docs/mcp-relay-setup.ru.md)** covers both connection modes, ChatGPT configuration, credential storage, password behavior and troubleshooting.
+
+> Upstream installation commands and download links below install the **official OpenCode**, not this fork. To use Relay, build this repository or install a separately packaged OpenCode Relay build. This project is not an official OpenCode release.
+
 ### Installation
 
 ```bash
@@ -101,62 +115,11 @@ Learn more about [agents](https://opencode.ai/v2/docs/agents).
 
 #### MCP Relay Mode
 
-Run OpenCode normally, then use `/mcprelaymode` (or `/relay`) to open a dedicated session driven by an external MCP
-client. First use opens setup automatically. `/connect` → **MCP Relay Mode** opens the same settings and status panel.
-In settings, choose **OpenAI Tunnel (private, no Relay password)** or **Public HTTPS (OAuth password)**.
-The tunnel option is recommended for a personal ChatGPT connection: it uses a Tunnel ID and API key, with access
-controlled by OpenAI workspace/tunnel permissions and normal OpenCode tool permissions, not a Relay password.
-The public HTTPS option retains the separate OAuth Access password prompt. Switching modes keeps saved credentials,
-but uses authentication only for the selected mode. Never expose the unauthenticated tunnel-mode loopback listener
-to another machine.
-Normal sessions keep their usual model-driven behavior. Relay exposes native OpenCode tools, agent prompts,
-repository instructions and skills; subagents are disabled. Native permission requests, questions and tool activity
-appear in the Relay session in the TUI or GUI.
+Run `/mcprelaymode` (or `/relay`) to open a dedicated external-model session; `/connect` → **MCP Relay Mode** opens its settings. External MCP tool calls use real OpenCode permissions and show their activity in the standard GUI/TUI. The relay can start automatically when a saved Relay session is restored.
 
-Native MCP tool calls require `_opencode_summary`: one short sentence describing the action in the user's language
-(not private reasoning). It is recorded before execution and shown above the native tool card. Relay calls are
-separate, expanded-by-default cards in the GUI; manually collapsed cards stay collapsed. Older calls fall back to
-the tool name and path or command. Ordinary model-driven sessions retain their usual grouping.
+Choose either **OpenAI Tunnel** (private, no separate Relay password or public proxy) or **Public HTTPS + OAuth** (separate user-facing access password). These have different security properties; credentials are stored in OpenCode's Credential store, not in project files.
 
-Packaged TUI builds include `start.command` next to `opencode`. Run it from the desired working directory;
-it inherits that directory and forwards all arguments unchanged. It never changes to the bundle directory or a
-machine-specific project path. For example: `cd /path/to/project` then `/path/to/bundle/start.command`.
-
-Relay runs inside the existing backend, with an independently OAuth-protected HTTP listener (default
-`127.0.0.1:4099`). Publish that port through your HTTPS reverse proxy or tunnel, and enter its origin without `/mcp`
-as the public URL. Add the exact callback URL shown by your MCP client. Save settings, copy the generated client
-secret and access password from the panel, then start Relay. The access password is a dedicated Relay secret, not
-your operating-system or OpenCode account password.
-
-Alternatively, use **OpenAI Secure MCP Tunnel** without a public HTTPS endpoint or `cloudflared`. First create a
-private tunnel under [OpenAI Platform tunnel settings](https://platform.openai.com/settings) and associate it with
-the intended ChatGPT workspace. In Relay settings, enter the tunnel ID (`tunnel_...`) and an OpenAI API key with
-**Tunnels Read + Use** access, then save and start Relay. OpenCode connects directly to OpenAI over outbound HTTPS;
-its MCP listener is restricted to `127.0.0.1`, without local OAuth. In ChatGPT, add a custom MCP server, choose
-**Tunnel** as the connection type, and select or paste the same tunnel ID. The API key is stored in OpenCode's
-credential store rather than its configuration. Remove the tunnel ID to return to the public HTTPS/OAuth mode.
-The tunnel must already exist in your OpenAI Platform account; no additional tunnel process is needed.
-
-The settings panel also accepts your own **OAuth client secret** and **Access password**, with a separate **Generate**
-action for each. Editing or generating a value only updates the draft until you save. Empty values preserve existing
-credentials, or generate them on first save. After replacing the client secret, update the MCP client's settings too.
-Each field has **Show/Hide** and **Copy** controls for its current value, including unsaved drafts. These two secrets
-are stored as recoverable credentials; only issued OAuth access and refresh tokens are persisted as hashes.
-
-For ChatGPT, use the copied MCP URL, client ID and secret, token authentication `client_secret_post`, scope
-`opencode:tools` and PKCE `S256`. Auth URL is `<public origin>/oauth/authorize`; Token URL is
-`<public origin>/oauth/token`. OIDC and dynamic client registration are not implemented.
-The settings panel provides copy actions for Auth URL, Token URL, authorization server base (the public origin),
-and Resource (the MCP URL), in addition to the MCP URL and client ID. No Registration URL or OIDC URL is needed.
-
-Non-secret `mcpRelay` settings are saved to OpenCode's global configuration, secrets use its Credential store,
-and session bindings plus issued token hashes use the main database's existing KV table. No Relay-specific database
-or `.env` is needed. Repository configuration cannot provide host-wide Relay settings. The listener starts when
-its Relay session opens, including restoring that session on application startup; **Stop Relay** or closing its
-session tab stops it without converting or deleting its session.
-Settings remain editable while running and apply only after **Save and restart Relay**. Switching UI tabs never
-retargets a connected model. Backend shutdown stops the listener; activation after restart reuses the saved session
-and unexpired OAuth tokens. Existing standalone MCP entry points remain supported.
+**Full instructions: [Configure MCP Relay, ChatGPT, OpenAI Tunnel and OAuth (Русский)](docs/mcp-relay-setup.ru.md).**
 
 For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/v2/docs).
 
